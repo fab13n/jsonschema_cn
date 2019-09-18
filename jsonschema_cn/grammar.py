@@ -23,10 +23,7 @@ probably won't be addressed until after first release):
     * [X] patternProperties. Can accept regex as property names.
     * [X] schema properties (not fully understood...)
 * add source in `"$comment"` when sensible (criterion of size comparison?)
-* enum: to be produced as an optimization of `{ "anyOf": [{ "const": ... } ... ] }`.
-* anyOf, allOf. Syntax: use infix `|` and `&`. Don't introduce precedence, enforce
-  parentheses instead.
-* [X] oneOf (dubious usefulness)
+* [X] oneOf (dubious usefulness, compared to anyOf)
 * not. Syntax: use a prefix `not`, it's not usefull enough to deserve a symbol.
 * [X] `if / then / else`. Jsonschema doc seems dubious, shows them inside an object
   definition rather than in their own block.
@@ -36,8 +33,12 @@ probably won't be addressed until after first release):
 from parsimonious import Grammar
 
 grammar = Grammar(r"""
-entry = _ type _
-type = litteral / string / object / integer / array / lit_regex / lit_format / constant
+entry = _ sequence_or _
+type = litteral / string / object / integer / array / lit_regex / lit_format / constant / parens
+parens = lparen _ sequence_or _ rparen
+sequence_or = sequence_and (_ or _ sequence_and)*
+sequence_and = type (_ and _ type)*
+
 litteral = "boolean" / "null" / "number"
 
 lit_integer = ~"[0-9]+" / ~"0x[0-9a-f]+"
@@ -54,6 +55,10 @@ opt_multiple = ("/" _ lit_integer)?
 regex_prefix = "r"
 format_prefix = "f"
 dots = "..."
+or = "|"
+and = "&"
+lparen = "("
+rparen = ")"
 lbrace = "{"
 rbrace = "}"
 lbracket = "["

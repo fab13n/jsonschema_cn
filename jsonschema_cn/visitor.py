@@ -1,6 +1,7 @@
 from parsimonious import NodeVisitor
 from collections import Sequence
 from typing import Tuple, Optional
+import json
 
 from . import tree as T
 
@@ -15,7 +16,7 @@ class JSCNVisitor(NodeVisitor):
         "card_1": (0, 0), "card_2": (0, -1),
         "object": 0, "object_field": 0, "field_type": 0,
         "multiple": 1,
-        "array": 0
+        "array": 0, "parens": 1
     }
 
     @classmethod
@@ -30,6 +31,26 @@ class JSCNVisitor(NodeVisitor):
 
     def visit__(self, node, c) -> object:
         return self.WHITESPACE_TOKEN
+
+    def visit_sequence_and(self, node, c) -> T.Type:
+        first, rest = self.unspace(c)
+        if len(rest):
+            return T.Operator('allOf', first, *(item[1] for item in rest))
+        else:
+            return first
+
+    def visit_sequence_or(self, node, c) -> T.Type:
+        first, rest = self.unspace(c)
+        if len(rest) == 0:
+            return first
+        args = [first] + [item[1] for item in rest]
+        if all(isinstance(a, T.Constant) for a in args):
+            # Convert oneof(const(...)...) into enum(...)
+            print("args", args)
+            constants = [a.args[0] for a in args]
+            return T.Enum(*constants)
+        else:
+            return T.Operator('oneOf', first, *(item[1] for item in rest))
 
     def visit_string(self, node, c) -> T.String:
         _, cardinal = self.unspace(c)
@@ -72,7 +93,8 @@ class JSCNVisitor(NodeVisitor):
 
     def visit_constant(self, node, c) -> T.Constant:
         # This rule is space-free
-        return T.Constant(node.text[1:-1])
+        value = json.loads(node.text[1:-1])
+        return T.Constant(value)
 
     def visit_object_empty(self, node, c) -> T.Object:
         return T.Object(())

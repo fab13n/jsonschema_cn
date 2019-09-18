@@ -65,6 +65,17 @@ class Constant(Type):
         return {"const": self.args[0]}
 
 
+class Operator(Type):
+    def tojson(self):
+        op = self.args[0]
+        args = self.args[1:]
+        return {op: [a.tojson() for a in args]}
+
+
+class Enum(Type):
+    def tojson(self):
+        return {"enum": self.args}
+
 class ObjectProperty(NamedTuple):
     name: Optional[str]
     optional: bool
