@@ -11,19 +11,26 @@ class JSCNVisitor(NodeVisitor):
     WHITESPACE_TOKEN = object()
 
     SHELL_EXPRESSIONS = {
-        "entry": 0, "type": 0, "litteral": 0,
-        "cardinal": 1, "card_content": 0,
-        "card_1": (0, 0), "card_2": (0, -1),
-        "object": 0, "object_field": 0, "field_type": 0,
+        "entry": 0,
+        "type": 0,
+        "litteral": 0,
+        "cardinal": 1,
+        "card_content": 0,
+        "card_1": (0, 0),
+        "card_2": (0, -1),
+        "object": 0,
+        "object_field": 0,
+        "field_type": 0,
         "multiple": 1,
-        "array": 0, "parens": 1
+        "array": 0,
+        "parens": 1,
     }
 
     @classmethod
     def unspace(cls, sequence, index=None):
         """Remove space tokens from a sequence of visited children.
         if extra integer indexes are passed as args, only keep those."""
-        unspaced = tuple(item for item in sequence if item is not cls.WHITESPACE_TOKEN)
+        unspaced = tuple(x for x in sequence if x is not cls.WHITESPACE_TOKEN)
         if index is not None:
             return unspaced[index]
         else:
@@ -32,10 +39,13 @@ class JSCNVisitor(NodeVisitor):
     def visit__(self, node, c) -> object:
         return self.WHITESPACE_TOKEN
 
+    def visit_entry(self, node, c) -> T.Entry:
+        return T.Entry(self.unspace(c, 0))
+
     def visit_sequence_and(self, node, c) -> T.Type:
         first, rest = self.unspace(c)
         if len(rest):
-            return T.Operator('allOf', first, *(item[1] for item in rest))
+            return T.Operator("allOf", first, *(item[1] for item in rest))
         else:
             return first
 
@@ -50,7 +60,7 @@ class JSCNVisitor(NodeVisitor):
             constants = [a.args[0] for a in args]
             return T.Enum(*constants)
         else:
-            return T.Operator('oneOf', first, *(item[1] for item in rest))
+            return T.Operator("oneOf", first, *(item[1] for item in rest))
 
     def visit_string(self, node, c) -> T.String:
         _, cardinal = self.unspace(c)
@@ -76,10 +86,18 @@ class JSCNVisitor(NodeVisitor):
         return T.String(format=node.children[-1].text[1:-1])
 
     def visit_opt_multiple(self, node, c) -> Optional[int]:
-        return None if len(c) == 0 else unspace(c[0], 1)
+        uc = self.unspace(c)
+        return None if len(uc) == 0 else uc[0][1]
 
     def visit_opt_cardinal(self, node, c) -> Tuple[Optional[int], Optional[int]]:
-        return (None, None) if len(c) == 0 else unspace(c[0], 1)
+        # TODO visit of card_1 went wrong, index (0,0) didn't work
+        if len(c) == 0:  # Empty cardinal
+            return (None, None)
+        uc = self.unspace(c[0], 1)
+        if isinstance(uc, int):
+            return (uc, uc)
+        else:
+            return uc
 
     def visit_card_min(self, node, c) -> Tuple[int, None]:
         return (self.unspace(c, 0), None)
@@ -113,8 +131,8 @@ class JSCNVisitor(NodeVisitor):
         return T.ObjectProperty(None, True, self.unspace(c, 2))
 
     def visit_array_empty(self, node, c) -> T.Array:
-        card = self.unspace(c, 4)
-        return T.ArrayList(types=[], additional_types=True, cardinal=card)
+        card = self.unspace(c, 3)
+        return T.Array(types=[], additional_types=True, cardinal=card)
 
     def visit_array_non_empty(self, node, c) -> T.Array:
         _, first_type, other_types_with_commas, extra, _, card = self.unspace(c)
@@ -122,7 +140,7 @@ class JSCNVisitor(NodeVisitor):
         other_types = (t[1] for t in other_types_with_commas)
         types = (first_type, *other_types)
 
-        if extra is None:  # No ... / + / * -> no extra items allowed
+        if extra is None:  # No suffix -> no extra items allowed
             additional_items = False
         elif extra == "...":
             additional_items = True
@@ -133,6 +151,8 @@ class JSCNVisitor(NodeVisitor):
                 min_len = len(types) + 1
                 if card[0] is None or card[0] < min_len:
                     card = (min_len, card[1])
+        # TODO: check consistency between cardinal constraint and size
+        # when extra is False
         return T.Array(types=types, additional_types=additional_items, cardinal=card)
 
     def visit_array_extra(self, node, c) -> str:

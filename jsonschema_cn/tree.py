@@ -1,11 +1,8 @@
-from collections import Sequence
 from abc import ABC, abstractmethod
-from numbers import Number
 from typing import NamedTuple, Optional
 
 
 class Type(ABC):
-
     def __init__(self, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
@@ -15,21 +12,33 @@ class Type(ABC):
         pass
 
     def __str__(self):
-        a = [str(arg) for arg in self.args] + [k+"="+str(v) for k, v in self.kwargs.items()]
+        a = [str(arg) for arg in self.args] + [
+            k + "=" + str(v) for k, v in self.kwargs.items()
+        ]
         return f"{self.__class__.__name__}({', '.join(a)})"
 
     __repr__ = __str__
 
-class Integer(Type):
 
+class Entry(Type):
     def tojson(self):
-        (card_min, card_max) = self.kwargs['cardinal']
-        mult = self.kwargs['multiple']
+        r = self.args[0].tojson()
+        definitions = self.kwargs.get("definitions")
+        if definitions:
+            r["definitions"] = {k: v.tojson() for k, v in definitions.items()}
+        r["$schema"] = "http://json-schema.org/draft-07/schema#"
+        return r
+
+
+class Integer(Type):
+    def tojson(self):
+        (card_min, card_max) = self.kwargs["cardinal"]
+        mult = self.kwargs["multiple"]
         r = {"type": "integer"}
         if card_min is not None:
-            r['minimum'] = card_min
+            r["minimum"] = card_min
         if card_max is not None:
-            r['maximum'] = card_max
+            r["maximum"] = card_max
         if mult is not None:
             r["multipleOf"] = mult
         return r
@@ -37,7 +46,7 @@ class Integer(Type):
 
 class String(Type):
     def tojson(self):
-        card = self.kwargs.get('cardinal', (None, None))
+        card = self.kwargs.get("cardinal", (None, None))
         r = {"type": "string"}
         if card is None:
             return r
@@ -45,13 +54,13 @@ class String(Type):
             card = (card, card)
         card_min, card_max = card
         if card_min is not None:
-            r['minLength'] = card_min
+            r["minLength"] = card_min
         if card_max is not None:
-            r['maxLength'] = card_max
-        if 'format' in self.kwargs:
-            r['format'] = self.kwargs['format']
-        if 'regex' in self.kwargs:
-            r['pattern'] = self.kwargs['regex']
+            r["maxLength"] = card_max
+        if "format" in self.kwargs:
+            r["format"] = self.kwargs["format"]
+        if "regex" in self.kwargs:
+            r["pattern"] = self.kwargs["regex"]
         return r
 
 
@@ -76,6 +85,7 @@ class Enum(Type):
     def tojson(self):
         return {"enum": self.args}
 
+
 class ObjectProperty(NamedTuple):
     name: Optional[str]
     optional: bool
@@ -84,46 +94,45 @@ class ObjectProperty(NamedTuple):
 
 class Object(Type):
     def tojson(self):
-        pairs = self.kwargs['properties']
+        pairs = self.kwargs["properties"]
         r = {}
         properties = {}
         required = []
         for (k, opt, v) in pairs:
             if k is None:
-                r['additionalProperties'] = v.tojson()
+                r["additionalProperties"] = v.tojson()
                 continue
             if not opt:
                 required.append(k)
             if v is not None:
                 properties[k] = v.tojson()
         if required:
-            r['required'] = required
+            r["required"] = required
         if properties:
-            r['properties'] = properties
+            r["properties"] = properties
         return r
 
 
 class Array(Type):
     def tojson(self):
-        set_types = self.kwargs['types']
-        extra_type = self.kwargs['additional_types']
-        card_min, card_max = self.kwargs['cardinal']
+        set_types = self.kwargs["types"]
+        extra_type = self.kwargs["additional_types"]
+        card_min, card_max = self.kwargs["cardinal"]
         r = {"type": "array"}
         if card_min is not None:
-            r['minItems'] = card_min
+            r["minItems"] = card_min
         if card_max is not None:
-            r['maxItems'] = card_max
+            r["maxItems"] = card_max
             if card_max > len(set_types) and extra_type is False:
                 extra_type = True  # Cardinals trump lack of allowed extras
         if set_types:  # Tuple array
-            r['items'] = [t.tojson() for t in set_types]
+            r["items"] = [t.tojson() for t in set_types]
             if extra_type is False:  # No extra items allowed
-                r['additionalItems'] = False
+                r["additionalItems"] = False
             elif extra_type is True:  # Extra items with any type
                 pass
             else:  # Forced type for extra items
-                r['additionalItems'] = extra_type.tojson()
-        else:  # List array
-            assert extra_type not in (True, False)
-            r['items'] = extra_type.tojson()
+                r["additionalItems"] = extra_type.tojson()
+        elif isinstance(extra_type, Type):  # List array with homogeneous type
+            r["items"] = extra_type.tojson()
         return r

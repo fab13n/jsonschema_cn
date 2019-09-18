@@ -1,4 +1,3 @@
-
 import sys
 import json
 
@@ -15,4 +14,3 @@ print("Parsed output:", output)
 print("json:")
 # print(output.tojson())
 print(json.dumps(output.tojson()))
-
