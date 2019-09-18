@@ -43,6 +43,12 @@ class JSCNVisitor(NodeVisitor):
         # This rule is space-free
         return T.Litteral(node.children[0].text)
 
+    def visit_lit_regex(self, node, c) -> T.String:
+        return T.String(regex=node.children[-1].text[1:-1])
+
+    def visit_lit_format(self, node, c) -> T.String:
+        return T.String(format=node.children[-1].text[1:-1])
+
     def visit_opt_multiple(self, node, c) -> Optional[int]:
         return None if len(c) == 0 else unspace(c[0], 1)
 

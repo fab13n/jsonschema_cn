@@ -36,7 +36,7 @@ class Integer(Type):
 
 class String(Type):
     def tojson(self):
-        card = self.kwargs['cardinal']
+        card = self.kwargs.get('cardinal', (None, None))
         r = {"type": "string"}
         if card is None:
             return r
@@ -47,6 +47,10 @@ class String(Type):
             r['minLength'] = card_min
         if card_max is not None:
             r['maxLength'] = card_max
+        if 'format' in self.kwargs:
+            r['format'] = self.kwargs['format']
+        if 'regex' in self.kwargs:
+            r['pattern'] = self.kwargs['regex']
         return r
 
 

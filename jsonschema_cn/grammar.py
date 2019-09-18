@@ -14,6 +14,7 @@ probably won't be addressed until after first release):
 * string:
     * regex. Can reuse parsimonious' tilde-prefix-on-strinf notation.
     * format
+    * [X] combine regex / format / cardinal together. Can still be done with `allOf`.
 * definitions and references. Can use Haskell's local definitions syntax
   `where foo = bar and baz = gnat`. Will have to be restricted to top-level.
 * objects:
@@ -39,18 +40,20 @@ from parsimonious import Grammar
 
 grammar = Grammar(r"""
 entry = _ type _
-type = litteral / string / object / integer / array
+type = litteral / string / object / integer / array / lit_regex / lit_format
 litteral = "boolean" / "null" / "number"
 
 lit_integer = ~"[0-9]+" / ~"0x[0-9a-f]+"
 lit_string = ~"\"[^\"]*\""  # TODO handle escaped quotes
-lit_regex = "r" lit_string
-lit_format = "f" lit_string
+lit_regex = regex_prefix lit_string
+lit_format = format_prefix lit_string
 
 string = "string" _ opt_cardinal
 integer = "integer" _ opt_cardinal _ opt_multiple
 opt_multiple = ("/" _ lit_integer)?
 
+regex_prefix = "r"
+format_prefix = "f"
 dots = "..."
 lbrace = "{"
 rbrace = "}"
