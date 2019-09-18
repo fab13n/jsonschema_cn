@@ -43,9 +43,11 @@ type = litteral / string / object / integer / array
 litteral = "boolean" / "null" / "number"
 
 lit_integer = ~"[0-9]+" / ~"0x[0-9a-f]+"
+lit_string = ~"\"[^\"]*\""  # TODO handle escaped quotes
+lit_regex = "r" lit_string
+lit_format = "f" lit_string
 
 string = "string" _ opt_cardinal
-lit_string = ~"\"[^\"]*\""  # TODO handle escaped quotes
 integer = "integer" _ opt_cardinal _ opt_multiple
 opt_multiple = ("/" _ lit_integer)?
 

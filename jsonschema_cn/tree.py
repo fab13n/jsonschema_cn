@@ -1,11 +1,14 @@
 from collections import Sequence
 from abc import ABC, abstractmethod
 from numbers import Number
+from typing import NamedTuple, Optional
 
-class Node(ABC):
 
-    def __init__(self, *args):
+class Type(ABC):
+
+    def __init__(self, *args, **kwargs):
         self.args = args
+        self.kwargs = kwargs
 
     @abstractmethod
     def tojson(self):
@@ -16,11 +19,11 @@ class Node(ABC):
 
     __repr__ = __str__
 
-    
-class Integer(Node):
-    # TODO handle optional constraints
+class Integer(Type):
+
     def tojson(self):
-        (card_min, card_max), mult = self.args
+        (card_min, card_max) = self.kwargs['cardinal']
+        mult = self.kwargs['multiple']
         r = {"type": "integer"}
         if card_min is not None:
             r['minimum'] = card_min
@@ -31,9 +34,9 @@ class Integer(Node):
         return r
 
 
-class String(Node):
+class String(Type):
     def tojson(self):
-        card = self.args[0]
+        card = self.kwargs['cardinal']
         r = {"type": "string"}
         if card is None:
             return r
@@ -47,14 +50,20 @@ class String(Node):
         return r
 
 
-class Litteral(Node):
+class Litteral(Type):
     def tojson(self):
         return {"type": self.args[0]}
 
 
-class Object(Node):
+class ObjectProperty(NamedTuple):
+    name: Optional[str]
+    optional: bool
+    type: Type
+
+
+class Object(Type):
     def tojson(self):
-        (pairs,) = self.args
+        pairs = self.kwargs['properties']
         r = {}
         properties = {}
         required = []
@@ -72,9 +81,12 @@ class Object(Node):
             r['properties'] = properties
         return r
 
-class Array(Node):
+
+class Array(Type):
     def tojson(self):
-        set_types, extra_type, (card_min, card_max) = self.args
+        set_types = self.kwargs['types']
+        extra_type = self.kwargs['additional_types']
+        card_min, card_max = self.kwargs['cardinal']
         r = {"type": "array"}
         if card_min is not None:
             r['minItems'] = card_min
