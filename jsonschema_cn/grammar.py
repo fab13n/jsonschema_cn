@@ -7,10 +7,10 @@ probably won't be addressed until after first release):
     * [X] multipleOf on non-integers
     * [X] exclusive ranges
 * array:
-    * [X] contains predicates. Can add a `contains <type>` prefix where array
+    * `contains` predicates. Can add a `contains <type>` prefix where array
       items are expected. jsonschema doc seems dubious: "contains" is associated
       with an object rather than a list thereof.
-    * [X] uniqueItems flag. Can add `unique` keyword where array items are expected.
+    * uniqueItems flag. Can add `unique` keyword where array items are expected.
 * string:
     * regex. Can reuse parsimonious' tilde-prefix-on-strinf notation.
     * format
@@ -42,11 +42,12 @@ entry = _ type _
 type = litteral / string / object / integer / array
 litteral = "boolean" / "null" / "number"
 
-int = ~"[0-9]+" / ~"0x[0-9a-f]+"
+lit_integer = ~"[0-9]+" / ~"0x[0-9a-f]+"
 
 string = "string" _ opt_cardinal
+lit_string = ~"\"[^\"]*\""  # TODO handle escaped quotes
 integer = "integer" _ opt_cardinal _ opt_multiple
-opt_multiple = ("/" _ int)?
+opt_multiple = ("/" _ lit_integer)?
 
 dots = "..."
 lbrace = "{"
@@ -61,18 +62,17 @@ plus = "+"
 
 opt_cardinal = (lbrace _ card_content _ rbrace)?
 card_content = card_2 / card_min / card_max / card_1
-card_2 = int _ comma _ int
-card_1 = int
-card_min = int _ comma? _ dots
-card_max = dots _ comma? _ int
+card_2 = lit_integer _ comma _ lit_integer
+card_1 = lit_integer
+card_min = lit_integer _ comma? _ dots
+card_max = dots _ comma? _ lit_integer
 
 object = object_empty / object_non_empty
 object_empty = lbrace _ dots? _ rbrace
 object_non_empty = lbrace _ object_field (_ comma _ object_field)* _ rbrace
-object_property_name = ~"\"[^\"]*\""
 object_field = property_less_pair / field_pair / dots
 property_less_pair = dots _ colon _ field_type
-field_pair = object_property_name _ question? _ colon _ field_type
+field_pair = lit_string _ question? _ colon _ field_type
 field_type = type / dots
 
 array = array_empty / array_non_empty

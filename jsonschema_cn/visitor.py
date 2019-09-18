@@ -55,7 +55,7 @@ class JSCNVisitor(NodeVisitor):
     def visit_card_max(self, node, c) -> Tuple[None, int]:
         return (None, self.unspace(c, 2))
 
-    def visit_int(self, node, c) -> int:
+    def visit_lit_integer(self, node, c) -> int:
         # This rule is space-free
         return int(node.text)
 
