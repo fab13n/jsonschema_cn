@@ -3,7 +3,6 @@
 Features unsupported by current grammar (those marked with an [X]
 probably won't be addressed until after first release):
 
-* whitespaces aren't tolerated in most places.
 * number:
     * [X] multipleOf on non-integers
     * [X] exclusive ranges
@@ -39,17 +38,15 @@ probably won't be addressed until after first release):
 from parsimonious import Grammar
 
 grammar = Grammar(r"""
-entry = type ws*
-ws = ~"\s"*
+entry = _ type _
 type = litteral / string / object / integer / array
 litteral = "boolean" / "null" / "number"
 
 int = ~"[0-9]+" / ~"0x[0-9a-f]+"
 
-string = "string" opt_cardinal
-integer = "integer" opt_cardinal opt_multiple
-opt_multiple = ("/" int)?
-key = ~"\"[^\"]*\""
+string = "string" _ opt_cardinal
+integer = "integer" _ opt_cardinal _ opt_multiple
+opt_multiple = ("/" _ int)?
 
 dots = "..."
 lbrace = "{"
@@ -62,29 +59,28 @@ question = "?"
 star = "*"
 plus = "+"
 
-opt_cardinal = (lbrace card_content rbrace)?
+opt_cardinal = (lbrace _ card_content _ rbrace)?
 card_content = card_2 / card_min / card_max / card_1
-card_2 = int comma int
+card_2 = int _ comma _ int
 card_1 = int
-card_min = int comma? dots
-card_max = dots comma? int
+card_min = int _ comma? _ dots
+card_max = dots _ comma? _ int
 
 object = object_empty / object_non_empty
-object_empty = lbrace dots? rbrace
-object_non_empty = lbrace object_field (comma object_field)* rbrace
-object_field = keyless_pair / field_pair / dots
-keyless_pair = dots colon field_type
-field_pair = key question? colon field_type
+object_empty = lbrace _ dots? _ rbrace
+object_non_empty = lbrace _ object_field (_ comma _ object_field)* _ rbrace
+object_property_name = ~"\"[^\"]*\""
+object_field = property_less_pair / field_pair / dots
+property_less_pair = dots _ colon _ field_type
+field_pair = object_property_name _ question? _ colon _ field_type
 field_type = type / dots
 
 array = array_empty / array_non_empty
-array_empty = lbracket dots? rbracket opt_cardinal
-array_non_empty = lbracket type (comma type)* array_extra rbracket opt_cardinal
-array_extra = ((comma dots) / dots / plus / star)?
+array_empty = lbracket _ dots? _ rbracket _ opt_cardinal
+array_non_empty = lbracket _ type (_ comma _ type)* _ array_extra _ rbracket _ opt_cardinal
+array_extra = ((comma _ dots) / dots / plus / star)?
 
-# TODO insert support for whitespaces
 _ = meaninglessness*
 meaninglessness = ~r"\s+" / comment
 comment = ~r"#[^\r\n]*"
-
 """)
