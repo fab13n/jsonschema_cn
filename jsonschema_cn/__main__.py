@@ -13,5 +13,6 @@ print("Raw output:", tree)
 output = visitor.visit(tree)
 print("Parsed output:", output)
 print("json:")
+# print(output.tojson())
 print(json.dumps(output.tojson()))
 

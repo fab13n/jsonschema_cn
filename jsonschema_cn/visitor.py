@@ -43,6 +43,11 @@ class JSCNVisitor(NodeVisitor):
         # This rule is space-free
         return T.Litteral(node.children[0].text)
 
+    def visit_lit_string(self, node, c) -> str:
+        # This rule is space-free
+        # TODO handle quote escapes
+        return node.text[1:-1]
+
     def visit_lit_regex(self, node, c) -> T.String:
         return T.String(regex=node.children[-1].text[1:-1])
 
@@ -65,6 +70,10 @@ class JSCNVisitor(NodeVisitor):
         # This rule is space-free
         return int(node.text)
 
+    def visit_constant(self, node, c) -> T.Constant:
+        # This rule is space-free
+        return T.Constant(node.text[1:-1])
+
     def visit_object_empty(self, node, c) -> T.Object:
         return T.Object(())
 
@@ -74,18 +83,12 @@ class JSCNVisitor(NodeVisitor):
         fields = (first_field, *other_fields)
         return T.Object(properties=fields)
 
-
     def visit_field_pair(self, node, c) -> T.ObjectProperty:
         key, question, _, val = self.unspace(c)
         return T.ObjectProperty(key, bool(question), val)
 
     def visit_unnamed_pair(self, node, c) -> T.ObjectProperty:
         return T.ObjectProperty(None, True, self.unspace(c, 2))
-
-    def visit_object_property_name(self, node, c) -> str:
-        # This rule is space-free
-        # TODO handle quote escapes
-        return node.text[1:-1]
 
     def visit_array_empty(self, node, c) -> T.Array:
         card = self.unspace(c, 4)

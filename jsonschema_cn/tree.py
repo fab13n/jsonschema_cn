@@ -15,7 +15,8 @@ class Type(ABC):
         pass
 
     def __str__(self):
-        return f"{self.__class__.__name__}({', '.join(str(arg) for arg in self.args)})"
+        a = [str(arg) for arg in self.args] + [k+"="+str(v) for k, v in self.kwargs.items()]
+        return f"{self.__class__.__name__}({', '.join(a)})"
 
     __repr__ = __str__
 
@@ -57,6 +58,11 @@ class String(Type):
 class Litteral(Type):
     def tojson(self):
         return {"type": self.args[0]}
+
+
+class Constant(Type):
+    def tojson(self):
+        return {"const": self.args[0]}
 
 
 class ObjectProperty(NamedTuple):

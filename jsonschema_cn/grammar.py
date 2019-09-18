@@ -12,8 +12,6 @@ probably won't be addressed until after first release):
       with an object rather than a list thereof.
     * uniqueItems flag. Can add `unique` keyword where array items are expected.
 * string:
-    * regex. Can reuse parsimonious' tilde-prefix-on-strinf notation.
-    * format
     * [X] combine regex / format / cardinal together. Can still be done with `allOf`.
 * definitions and references. Can use Haskell's local definitions syntax
   `where foo = bar and baz = gnat`. Will have to be restricted to top-level.
@@ -25,7 +23,6 @@ probably won't be addressed until after first release):
     * [X] patternProperties. Can accept regex as property names.
     * [X] schema properties (not fully understood...)
 * add source in `"$comment"` when sensible (criterion of size comparison?)
-* const. Syntax: just put them into back-quotes.
 * enum: to be produced as an optimization of `{ "anyOf": [{ "const": ... } ... ] }`.
 * anyOf, allOf. Syntax: use infix `|` and `&`. Don't introduce precedence, enforce
   parentheses instead.
@@ -40,13 +37,15 @@ from parsimonious import Grammar
 
 grammar = Grammar(r"""
 entry = _ type _
-type = litteral / string / object / integer / array / lit_regex / lit_format
+type = litteral / string / object / integer / array / lit_regex / lit_format / constant
 litteral = "boolean" / "null" / "number"
 
 lit_integer = ~"[0-9]+" / ~"0x[0-9a-f]+"
 lit_string = ~"\"[^\"]*\""  # TODO handle escaped quotes
 lit_regex = regex_prefix lit_string
 lit_format = format_prefix lit_string
+
+constant = ~"`[^`]+`"
 
 string = "string" _ opt_cardinal
 integer = "integer" _ opt_cardinal _ opt_multiple
