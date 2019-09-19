@@ -11,17 +11,14 @@ class JSCNVisitor(NodeVisitor):
     WHITESPACE_TOKEN = object()
 
     SHELL_EXPRESSIONS = {
-        "entry": 0,
         "type": 0,
-        "litteral": 0,
-        "cardinal": 1,
         "card_content": 0,
         "card_1": (0, 0),
         "card_2": (0, -1),
         "object": 0,
-        "object_field": 0,
-        "field_type": 0,
-        "multiple": 1,
+        "object_property": 0,
+        "object_pair_type": 0,
+        "object_pair_name": 0,
         "array": 0,
         "parens": 1,
     }
@@ -76,8 +73,9 @@ class JSCNVisitor(NodeVisitor):
 
     def visit_lit_string(self, node, c) -> str:
         # This rule is space-free
-        # TODO handle quote escapes
-        return node.text[1:-1]
+        source = node.text[1:-1]
+        unescaped = source.encode("utf-8").decode("unicode_escape")
+        return unescaped
 
     def visit_lit_regex(self, node, c) -> T.String:
         return T.String(regex=node.children[-1].text[1:-1])
@@ -90,7 +88,7 @@ class JSCNVisitor(NodeVisitor):
         return None if len(uc) == 0 else uc[0][1]
 
     def visit_opt_cardinal(self, node, c) -> Tuple[Optional[int], Optional[int]]:
-        # TODO visit of card_1 went wrong, index (0,0) didn't work
+        # generic_visit didn't detect card_1, probably due to some node optimization?
         if len(c) == 0:  # Empty cardinal
             return (None, None)
         uc = self.unspace(c[0], 1)
@@ -107,31 +105,45 @@ class JSCNVisitor(NodeVisitor):
 
     def visit_lit_integer(self, node, c) -> int:
         # This rule is space-free
-        return int(node.text)
+        text = node.text
+        base = 16 if len(text) > 2 and text[1] == "x" else 10
+        return int(text, base)
 
     def visit_constant(self, node, c) -> T.Constant:
         # This rule is space-free
-        value = json.loads(node.text[1:-1])
-        return T.Constant(value)
+        source = node.text[1:-1]
+        try:
+            value = json.loads(source)
+            return T.Constant(value)
+        except json.JSONDecodeError:
+            raise ValueError(f"{source} is not a valid JSON fragment")
 
     def visit_object_empty(self, node, c) -> T.Object:
-        return T.Object(())
+        return T.Object(additiona_properties=True, cardinal=c[-1])
 
     def visit_object_non_empty(self, node, c) -> T.Object:
-        _, first_field, other_fields_with_commas, _ = self.unspace(c)
-        other_fields = (item[1] for item in other_fields_with_commas)
+        _, first_field, others_with_commas, add_props, _, card = self.unspace(c)
+        other_fields = (item[1] for item in others_with_commas)
         fields = (first_field, *other_fields)
-        return T.Object(properties=fields)
+        return T.Object(
+            properties=fields, additional_properties=add_props, cardinal=card
+        )
 
-    def visit_field_pair(self, node, c) -> T.ObjectProperty:
+    def visit_object_pair(self, node, c) -> T.ObjectProperty:
         key, question, _, val = self.unspace(c)
         return T.ObjectProperty(key, bool(question), val)
 
-    def visit_unnamed_pair(self, node, c) -> T.ObjectProperty:
+    def visit_object_pair_unquoted_name(self, node, c) -> str:
+        return node.text
+
+    def visit_object_unnamed_pair(self, node, c) -> T.ObjectProperty:
         return T.ObjectProperty(None, True, self.unspace(c, 2))
 
+    def visit_object_additional_properties(self, node, c) -> str:
+        return node.text.endswith("...")
+
     def visit_array_empty(self, node, c) -> T.Array:
-        card = self.unspace(c, 3)
+        card = self.unspace(c, -1)
         return T.Array(types=[], additional_types=True, cardinal=card)
 
     def visit_array_non_empty(self, node, c) -> T.Array:
@@ -151,8 +163,14 @@ class JSCNVisitor(NodeVisitor):
                 min_len = len(types) + 1
                 if card[0] is None or card[0] < min_len:
                     card = (min_len, card[1])
-        # TODO: check consistency between cardinal constraint and size
-        # when extra is False
+
+        if isinstance(card[0], int) and len(types) >= card[0]:
+            card = (None, card[1])  # Constraint is redundant
+        if isinstance(card[1], int) and not additional_items and len(types) < card[1]:
+            raise ValueError(
+                f"An array cannot be both {len(types)} and <={card[1]} items long"
+            )
+
         return T.Array(types=types, additional_types=additional_items, cardinal=card)
 
     def visit_array_extra(self, node, c) -> str:

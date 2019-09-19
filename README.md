@@ -1,13 +1,15 @@
 JsonSchema Compact Notation
 ===========================
 
-[Json-schema]() is very useful to document and validate inputs and outputs of JSON-based
-REST APIs. Unfortunately, the schemas are more verbose and less human-readable than one
-may wish. This library defines a more compact syntax to describe JSON schemas, as well
-as a parser to convert such specifications into actual JSON schema.
+[Json-schema](https://json-schema.org/understanding-json-schema/reference/)
+is very useful to document and validate inputs and outputs of
+JSON-based REST APIs. Unfortunately, the schemas are more verbose and
+less human-readable than one may wish. This library defines a more
+compact syntax to describe JSON schemas, as well as a parser to
+convert such specifications into actual JSON schema.
 
-At some point in the future, this library may also offer the way back, from JSON schemas
-back to a compact notation.
+At some point in the future, this library may also offer the way back,
+from JSON schemas back to a compact notation.
 
 Informal grammar
 ----------------
@@ -16,8 +18,8 @@ Litteral types are accessible as keywords: `boolean`, `string`,
 `integer`, `number`, `null`.
 
 Regular expression strings are represented by `r`-prefixed litteral
-strings: `r"[0-9]+"` converts into `{"type": "string", "pattern":
-"[0-9]+"}`.
+strings, similar to Python litterals: `r"[0-9]+"` converts into
+`{"type": "string", "pattern": "[0-9]+"}`.
 
 Regular expression strings are represented by `f`-prefixed litteral
 strings: `f"uri""` converts into `{"type": "string", "format":
@@ -67,6 +69,9 @@ Types can be combined:
   over `|`, i.e. `A & B | C & D` is to be read as `(A&B) | (C&D)`.
 * parentheses can be added, e.g. `A & (B|C) & D`
 
+TODO
+----
+
 WILL DO:
 
 * support for prefix `not`: `[not null*]` an array without null values.
@@ -80,20 +85,29 @@ WILL DO:
 
 MAY DO:
 
-* support for regex as object property names
-* cardinal constraints for objects
-* ranges for non-integral numbers
-* combine string constraints: regex, format, cardinals... With can
+* on objects:
+    * support for regex as object property names
+    * limited support for dependent object fields, e.g.
+      `{"card_number": integer, "billing_address" if "card_number":
+      string, ...}`.
+* on numbers:
+    * ranges over floats (reusing cardinal grammar with float boundaries)
+    * modulus constrains on floats `number/0.25`.
+    * exclusive ranges in addition to inclusive ones. May use returned
+      braces, e.g. `integer{0,0x100{` as an equivalent for
+      `integer{0,0xFF}`?
+* combine string constraints: regex, format, cardinals... This can
   already be achieved with operator `&`.
-* exclusive ranges for numbers (they are currently inclusive). May use
-  returned braces, e.g. `integer{0,0x100{` as an equivalent for
-  `integer{0,0xFF}`?
-* add a few `"$comment"` fields for non-obvious translations.
-* limited support for dependent object fields, e.g.  `{"card_number":
-  integer, "billing_address" if "card_number": string, ...}`.
+* add a few `"$comment"` fields for non-obvious translations. Use size of
+  notation vs. size of generated schema as a clue, plus the presence of such
+  a somment at a higher level in the tree.
 * support for `|`, `&` and `not` operators at Python's level? That would mean
   exposing the resulting parse tree, whereas currently I directly export some
-  JSON.
+  JSON. Would mosly make sens if schema simplification is supported.
+
+WON'T DO:
+
+* Support for `"oneOf"`. In my experience, `"anyOf"` is always enough.
 
 Usage
 -----
@@ -107,3 +121,33 @@ Usage
         "items": [{"type": "integer"}],
         "additionalItems": {"type": "boolean"},
     }'''
+
+Optimization notes
+------------------
+
+In the future, one might consider schema simplifications. Among things to be considered:
+
+* Remplace `A&B` with `false` when `A` and `B` are incompatible
+* Merge object constraints
+* Merge arrays constraints? Not as obviously useful as object constraints
+* Simplify cardinal constraints
+* Perform the `const1 | ... | constn` to `enum` conversion as a simplification
+* Remove `"type"` indicator when another key carries the constraint?
+  (`"properties"`, `"items"`, `"format"`...)
+
+From schema back to CN
+----------------------
+
+In the future, one might consider translating JSON Schemas back to
+compact notations. Again, it moslty makes sens with CN-level
+simplifications. This would be a two-step process:
+
+* parse JSON-schema into a `tree.Type` Not clear whether there would
+  be many cases of un-translatable schemas, nor whether a minimal tree
+  representation would be easy to figure out. There's no canonical
+  tree for a given schema, e.g. `[string, integer+]` and
+  `[string, integer*]{2}` denote the same objects, and it's not
+  obvious whether one is better than the other.
+
+* print a tree back into source. This part should be more
+  straightforward, offered as a method on `tree.Type` subclasses.
