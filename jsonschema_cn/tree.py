@@ -87,7 +87,7 @@ class Operator(Type):
 
 class Enum(Type):
     def to_schema(self):
-        return {"enum": self.args}
+        return {"enum": list(self.args)}
 
 
 class ObjectProperty(NamedTuple):
@@ -146,18 +146,13 @@ class Object(Type):
 
 class Array(Type):
     def to_schema(self):
-        set_types = self.kwargs["types"]
+        types = self.kwargs["types"]
         extra_type = self.kwargs["additional_types"]
         card_min, card_max = self.kwargs["cardinal"]
         r = {"type": "array"}
-        if card_min is not None:
-            r["minItems"] = card_min
-        if card_max is not None:
-            r["maxItems"] = card_max
-            if card_max > len(set_types) and extra_type is False:
-                extra_type = True  # Cardinals trump lack of allowed extras
-        if set_types:  # Tuple array
-            r["items"] = [t.to_schema() for t in set_types]
+
+        if types:  # Tuple array
+            r["items"] = [t.to_schema() for t in types]
             if extra_type is False:  # No extra items allowed
                 r["additionalItems"] = False
             elif extra_type is True:  # Extra items with any type
@@ -167,8 +162,8 @@ class Array(Type):
         elif isinstance(extra_type, Type):  # List array with homogeneous type
             r["items"] = extra_type.to_schema()
 
-        implicit_card_min = len(set_types)
-        implicit_card_max = len(set_types) if extra_type is False else None
+        implicit_card_min = len(types)
+        implicit_card_max = len(types) if extra_type is False else None
 
         if card_min is not None and card_min > implicit_card_min:
             r["minItems"] = card_min

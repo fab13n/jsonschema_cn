@@ -53,7 +53,6 @@ class JSCNVisitor(NodeVisitor):
         args = [first] + [item[1] for item in rest]
         if all(isinstance(a, T.Constant) for a in args):
             # Convert oneof(const(...)...) into enum(...)
-            print("args", args)
             constants = [a.args[0] for a in args]
             return T.Enum(*constants)
         else:
@@ -108,7 +107,7 @@ class JSCNVisitor(NodeVisitor):
         text = node.text
         base = 16 if len(text) > 2 and text[1] == "x" else 10
         return int(text, base)
-
+    
     def visit_constant(self, node, c) -> T.Constant:
         # This rule is space-free
         source = node.text[1:-1]
@@ -119,7 +118,7 @@ class JSCNVisitor(NodeVisitor):
             raise ValueError(f"{source} is not a valid JSON fragment")
 
     def visit_object_empty(self, node, c) -> T.Object:
-        return T.Object(additiona_properties=True, cardinal=c[-1])
+        return T.Object(additional_properties=True, cardinal=c[-1])
 
     def visit_object_non_empty(self, node, c) -> T.Object:
         _, first_field, others_with_commas, add_props, _, card = self.unspace(c)
@@ -139,7 +138,7 @@ class JSCNVisitor(NodeVisitor):
     def visit_object_unnamed_pair(self, node, c) -> T.ObjectProperty:
         return T.ObjectProperty(None, True, self.unspace(c, 2))
 
-    def visit_object_additional_properties(self, node, c) -> str:
+    def visit_object_extra(self, node, c) -> str:
         return node.text.endswith("...")
 
     def visit_array_empty(self, node, c) -> T.Array:
@@ -156,14 +155,12 @@ class JSCNVisitor(NodeVisitor):
             additional_items = False
         elif extra == "...":
             additional_items = True
+        elif extra == "+":
+            additional_items = types[-1]
+            # Don't remove it from required items, there must be at least one
         else:  # Last type is the type of extra items
             additional_items = types[-1]
             types = types[:-1]
-            if extra == "+":  # There muxsst be at least one extra item
-                min_len = len(types) + 1
-                if card[0] is None or card[0] < min_len:
-                    card = (min_len, card[1])
-
         if isinstance(card[0], int) and len(types) >= card[0]:
             card = (None, card[1])  # Constraint is redundant
         if isinstance(card[1], int) and not additional_items and len(types) < card[1]:

@@ -1,12 +1,4 @@
-"""
-    * [X] schema properties (not fully understood...)
-* add source in `"$comment"` when sensible (criterion of size comparison?)
-* [X] oneOf (dubious usefulness, compared to anyOf)
-* not. Syntax: use a prefix `not`, it's not usefull enough to deserve a symbol.
-* [X] `if / then / else`. Jsonschema doc seems dubious, shows them inside an
-  object definition rather than in their own block.
-* support for keywords `array` and `object` as aliases for `[...]` and `{...}`.
-"""
+"""PEG Grammar for JSON-Schema compact notation."""
 from parsimonious import Grammar
 
 grammar = Grammar(
@@ -58,25 +50,28 @@ card_min = lit_integer _ comma? _ dots
 card_max = dots _ comma? _ lit_integer
 
 object = object_empty / object_non_empty
-object_empty = ((lbrace _ object_additional_properties? _ rbrace) / kw_object) opt_cardinal
+object_empty = ((lbrace _ object_extra _ rbrace) / kw_object) opt_cardinal
 object_non_empty = lbrace _
                    object_property (_ comma _ object_property)* _
-                   object_additional_properties _
+                   object_extra _
                    rbrace
                    opt_cardinal
-object_property = object_unnamed_pair / object_pair  # TODO tolerate lack of quotes
+object_property = object_unnamed_pair / object_pair
 object_unnamed_pair = dots _ colon _ object_pair_type
 object_pair = object_pair_name _ question? _ colon _ object_pair_type
 object_pair_name = lit_string / object_pair_unquoted_name
 object_pair_unquoted_name = ~"[A-Za-z0-9][-_A-Za-z0-9]*"
 object_pair_type = type / dots
-object_additional_properties = comma? _ dots?
+object_extra = comma? _ dots?
 
 array = array_empty / array_non_empty
 array_empty = ((lbracket _ dots? _ rbracket) / kw_array) _ opt_cardinal
-array_non_empty = lbracket _ type (_ comma _ type)* _
-                  array_extra _ rbracket _ opt_cardinal
-array_extra = ((comma _ dots) / dots / plus / star)?
+array_non_empty = lbracket _
+                  type (_ comma _ type)* _
+                  array_extra _
+                  rbracket _
+                  opt_cardinal
+array_extra = ((comma? _ dots) / plus / star)?
 
 _ = meaninglessness*
 meaninglessness = ~r"\s+" / comment
