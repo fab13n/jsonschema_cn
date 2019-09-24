@@ -1,6 +1,6 @@
 import unittest
 from . import to_schema, to_json
-
+import json
 
 class TestJSCN(unittest.TestCase):
 
@@ -10,7 +10,7 @@ class TestJSCN(unittest.TestCase):
         self.assertDictEqual(sch2, sch)
 
     def test_to_json(self):
-        self.assertDictEqual(to_schema("integer").to_json(), to_json("integer"))
+        self.assertEqual(json.dumps(to_schema("integer")), to_json("integer"))
 
     def test_simple(self):
         self.cmp("boolean", {"type": "boolean"})
@@ -37,34 +37,33 @@ class TestJSCN(unittest.TestCase):
     def test_object_empty(self):
         obj = {"type": "object"}
         self.cmp("{}", obj)
-        self.cmp("{...}", obj)
         self.cmp("object", obj)
 
     def test_object_simple(self):
-        self.cmp("{foo: integer}",
+        self.cmp("{only foo: integer}",
                  {"type": "object",
                   "required": ["foo"],
                   "properties":
                   {"foo": {"type": "integer"}},
                   "additionalProperties": False})
-        self.cmp("{foo: integer, ...}",
+        self.cmp("{foo: integer}",
                  {"type": "object",
                   "required": ["foo"],
                   "properties":
                   {"foo": {"type": "integer"}}})
-        self.cmp("{foo: integer...}",
-                 {"type": "object",
-                  "required": ["foo"],
-                  "properties":
-                  {"foo": {"type": "integer"}}})
-        self.cmp("{foo?: integer, ...}",
+        self.cmp("{foo?: integer}",
                  {"type": "object",
                   "properties":
                   {"foo": {"type": "integer"}}})
-        self.cmp('{"foo"?: integer, ...}',
+        self.cmp('{"foo"?: integer}',
                  {"type": "object",
                   "properties":
                   {"foo": {"type": "integer"}}})
+        self.cmp('{_: integer}',
+                 {"type": "object",
+                  "additionalProperties": {"type": "integer"}})
+
+        # TODO combine wildcard + only: what's the meaning?!
 
     def test_object_card(self):
         pass
@@ -72,25 +71,21 @@ class TestJSCN(unittest.TestCase):
     def test_array_empty(self):
         array = {"type": "array"}
         self.cmp("[]", array)
-        self.cmp("[...]", array)
         self.cmp("array", array)
 
     def test_object_simple(self):
         integer = {"type": "integer"}
-        self.cmp("[integer]",
+        self.cmp("[only integer]",
                  {"type": "array",
                   "items": [integer],
                   "additionalItems": False})
-        self.cmp("[integer, ...]",
-                 {"type": "array",
-                  "items": [integer]})
-        self.cmp("[integer...]",
+        self.cmp("[integer]",
                  {"type": "array",
                   "items": [integer]})
         self.cmp("[integer*]",
                  {"type": "array",
                   "items": integer}) # List-notation rather than tuple notation
-        self.cmp("[integer+]",
+        self.cmp("[integer+]",  # Maybe encoded either that way or with a cardinal
                  {"type": "array",
                   "items": [integer],
                   "additionalItems": integer})
@@ -98,6 +93,6 @@ class TestJSCN(unittest.TestCase):
     def test_array_card(self):
         pass
 
-    
+
 if __name__ == '__main__':
     unittest.main()

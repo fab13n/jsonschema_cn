@@ -126,6 +126,9 @@ class Object(Type):
             len(properties) if r.get("additionalProperties") is False else None
         )
 
+        if 'property_names' in self.kwargs:
+            r['propertyNames'] = {"pattern": self.kwargs['property_names']}
+
         if card_min is not None:
             if card_min > implicit_card_min:
                 r["minProperties"] = card_min
@@ -178,5 +181,8 @@ class Array(Type):
                 )
             if implicit_card_max is None or card_max < implicit_card_max:
                 r["maxItems"] = card_max
+
+        if self.kwargs.get("unique"):
+            r['uniqueItems'] = True
 
         return r

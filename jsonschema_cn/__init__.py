@@ -4,7 +4,7 @@ from .tree import Type
 from typing import Any
 
 
-__version__ = "0.1"
+__version__ = "0.2"
 
 
 def to_tree(source: str) -> Type:

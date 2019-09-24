@@ -32,33 +32,36 @@ Arrays are described between square brackets:
 
 * an homogeneous, non-empty array of integers is denoted `[integer+]`
 * an homogeneous array of integers is denoted `[integer*]`
-* an array of two booleans is denoted `[boolean, boolean]`
-* an array starting with two booleans and followed by any number
-  of other items of any type is denoted with `[boolean, boolean, ...]`
-* an array, without constraints on type nor number of items, is
-  denoted `[...]`
-* arrays support cardinal suffix between braces: `[...]{7}` is an
+* an array of two booleans is denoted `[boolean, boolean]`. It can also
+  contain additional items after those two booleans.
+* To prevent items other than those explicitly listed, add an `only`
+  keyword at the beginning of the array: `[only boolean, boolean]`.
+* arrays support cardinal suffix between braces: `[]{7}` is an
   array of 7 elements, `[integer*]{3,8}` is an array of between 3 and
-  8 integers (inclusive), `[...]{...9}` an array of at most 9
-  elements, `[string*]{4...}` an array of at least 4 strings. Beware,
-  `[string]{4}` denotes nothing: it must be both an array of only one
-  string(no `+` / `*` / `...' suffix) and an array of 4 elements.
+  8 integers (inclusive), `[]{_, 9}` an array of at most 9
+  elements, `[string*]{4, _}` an array of at least 4 strings.
+* a uniqueness constraint can be added with the `unique` prefix, as in
+  `[unique integer+]`, which will allow `[1, 2, 3]` but not `[1, 2, 1]`.
 
-Strings and integers also support cardinal suffixes, e.g. `string{16}`,
-`integer{...0xFFFF}`.
+Strings and integers also support cardinal suffixes,
+e.g. `string{16}`, `integer{_, 0xFFFF}`.
 
 Objects are described between curly braces:
 
 * `{"bar": integer}` is an object with one field `"bar"` of type
-  integer.
-* `{"bar": integer, ...}` is an object with at least a field `"bar"`
-  of type integer, plus any other possible field / type combination.
-* `{"bar"?: integer, ...}` is an object which, if it has a field
-  `"bar"`, has an integer in it. It may also have any other possible
-  field / type combination.
-* `{"bar": integer, ...: string}` is an object with a field
-  `"bar"` of type integer. It may also have any other possible
-  fields, but all of them must contain strings.
+  integer, and possibly other fields.
+* To prevent other fields from being accepted, use a prefix `only`, as in
+  `{only "bar": integer}`.
+* Quotes are optional around property names, is they are identifiers other
+  than `"_"` or `"only"`: it's legal to write `{bar: integer}`.
+* The wildcard property name `_` gives a type constraint on every
+  extra property, e.g.  `{"bar": integer, _: string}` is an object
+  with a field `"bar"` of type integer, and optionally other
+  properties with any names, but all containing strings.
+* Property names can be forced to respect a regular expression, with
+`only <regex>` prefix, e.g. `{only r"[0-9]+" _: integer}` will only accept
+integer-to-integer maps.
+
 
 Types can be combined:
 
@@ -75,10 +78,6 @@ TODO
 WILL DO:
 
 * support for prefix `not`: `[not null*]` an array without null values.
-* `contains` constraint on arrays, e.g. ``[boolean* contains `true`]``
-  an array of booleans, at least one of them being true.
-* `unique` constraint on arrays, e.g. `[integer* unique]` an array of integers
-  without repetition.
 * shared definitions: `{"source": *ident, "destination": *ident} where
   ident = r"[A-Z]{16}" and unused = boolean` will create and use an
   `"ident"` definition, create an `"unused"` definition without using it.
@@ -86,7 +85,6 @@ WILL DO:
 MAY DO:
 
 * on objects:
-    * support for regex as object property names
     * limited support for dependent object fields, e.g.
       `{"card_number": integer, "billing_address" if "card_number":
       string, ...}`.
@@ -113,7 +111,7 @@ Usage
 -----
 
     >>> import jsonschema_cn
-    >>> jsonschema_cn.tojson("[integer,boolean+]{4}")
+    >>> jsonschema_cn.tojson("[integer, boolean+]{4}")
     '''{"$schema": "http://json-schema.org/draft-07/schema#",
         "type": "array",
         "minItems": 4,

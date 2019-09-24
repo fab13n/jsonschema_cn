@@ -11,8 +11,10 @@ with open("jsonschema_cn/__init__.py") as fh:
 
 
 setup(name='jsonschema_cn',
-      version='0.1',
+      version=version,
       description='Compact notation for JSON Schemas',
+      long_description=long_description,
+      long_description_content_type="text/markdown",
       url='http://github.com/fab13n/jsonschema_cn',
       author='Fabien Fleutot',
       author_email='fleutot@gmail.com',

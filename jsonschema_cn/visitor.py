@@ -1,6 +1,6 @@
 from parsimonious import NodeVisitor
 from collections import Sequence
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Set
 import json
 
 from . import tree as T
@@ -107,7 +107,7 @@ class JSCNVisitor(NodeVisitor):
         text = node.text
         base = 16 if len(text) > 2 and text[1] == "x" else 10
         return int(text, base)
-    
+
     def visit_constant(self, node, c) -> T.Constant:
         # This rule is space-free
         source = node.text[1:-1]
@@ -121,12 +121,18 @@ class JSCNVisitor(NodeVisitor):
         return T.Object(additional_properties=True, cardinal=c[-1])
 
     def visit_object_non_empty(self, node, c) -> T.Object:
-        _, first_field, others_with_commas, add_props, _, card = self.unspace(c)
+        _, (only, only_regex), first_field, others_with_commas, _, card = self.unspace(c)
         other_fields = (item[1] for item in others_with_commas)
         fields = (first_field, *other_fields)
-        return T.Object(
-            properties=fields, additional_properties=add_props, cardinal=card
-        )
+        kwargs = {'properties': fields, 'cardinal': card}
+        if not only:
+            kwargs['additional_properties'] = True
+        elif only_regex is not None:
+            kwargs['additional_properties'] = True
+            kwargs['property_names'] = only_regex
+        else:
+            kwargs['additional_properties'] = False
+        return T.Object(**kwargs)
 
     def visit_object_pair(self, node, c) -> T.ObjectProperty:
         key, question, _, val = self.unspace(c)
@@ -138,23 +144,36 @@ class JSCNVisitor(NodeVisitor):
     def visit_object_unnamed_pair(self, node, c) -> T.ObjectProperty:
         return T.ObjectProperty(None, True, self.unspace(c, 2))
 
-    def visit_object_extra(self, node, c) -> str:
-        return node.text.endswith("...")
+    def visit_object_only(self, node, c) -> Tuple[bool, Optional[str]]:
+        """Parse `only`, `only r"<pattern>"` and `only r"pattern",`."""
+        if len(c) == 0:  # Empty sequence
+            return (False, None)
+        maybe_regex = self.unspace(c[0], 1)
+        if len(maybe_regex):
+            r = maybe_regex[0]
+            return True, r.kwargs['regex']
+        else:
+            return True, None
 
     def visit_array_empty(self, node, c) -> T.Array:
         card = self.unspace(c, -1)
         return T.Array(types=[], additional_types=True, cardinal=card)
 
     def visit_array_non_empty(self, node, c) -> T.Array:
-        _, first_type, other_types_with_commas, extra, _, card = self.unspace(c)
+        """
+        With only one type and a "+" / "*" suffix, it's an homogeneous list.
+        In this case, if there is a "only" qualifier it is ignored.
+        With more than one type and a "+" / "*" suffix, it's a tuple type
+        with extra items type. Here too, any "only" qualifier will be ignored.
+        Without a suffix, it's a tuple type, the "only" qualifier is enforced.
+        """
+        _, array_prefix, first_type, other_types_with_commas, extra, _, card = self.unspace(c)
 
         other_types = (t[1] for t in other_types_with_commas)
         types = (first_type, *other_types)
 
-        if extra is None:  # No suffix -> no extra items allowed
-            additional_items = False
-        elif extra == "...":
-            additional_items = True
+        if extra is None:  # No suffix -> tuple typing
+            additional_items = "only" not in array_prefix
         elif extra == "+":
             additional_items = types[-1]
             # Don't remove it from required items, there must be at least one
@@ -168,7 +187,15 @@ class JSCNVisitor(NodeVisitor):
                 f"An array cannot be both {len(types)} and <={card[1]} items long"
             )
 
-        return T.Array(types=types, additional_types=additional_items, cardinal=card)
+        return T.Array(types=types, additional_types=additional_items, cardinal=card, unique="unique" in array_prefix)
+
+    def visit_array_prefix(self, node, c) -> Set[str]:
+        """Return a set of strings among "unique" and "only"."""
+        r = set()
+        for word in ("unique", "only"):
+            if word in node.text:
+                r.add(word)
+        return r
 
     def visit_array_extra(self, node, c) -> str:
         # This rule is space-free
