@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, Set
 import json
 
 
@@ -42,15 +42,34 @@ class Type(ABC):
 
 
 class Entry(Type):
-    def to_schema(self):
+    def to_schema(self, check_definitions=True):
         r = self.args[0].to_schema()
         definitions = self.args[1]
         if definitions:
             r["definitions"] = {k: v.to_schema() for k, v in definitions.items()}
+            if check_definitions:
+                for k in self.get_references(r):
+                    if k not in r["definitions"].keys():
+                        raise ValueError(f"Missing definition for {k}")
         r["$schema"] = "http://json-schema.org/draft-07/schema#"
         return r
 
-    # TODO let operators | & not go through
+    def get_references(self, x) -> Set[str]:
+        """Extract every definition usage from a schema, so that it can be checked
+        that they are all defined."""
+        if isinstance(x, dict):
+            if "$ref" in x:
+                return {x["$ref"].rsplit("/", 1)[-1]}
+            else:
+                return set.union(*(self.get_references(y) for y in x.values()))
+        elif isinstance(x, list):
+            return set.union(*(self.get_references(y) for y in x))
+        else:
+            return set()
+
+    def _combine(self, other, op):
+        # TODO: merge definitions and keep the `"$schema"` tag.
+        return super().combine(other, op)
 
 
 class Integer(Type):
@@ -124,6 +143,7 @@ class ObjectProperty(NamedTuple):
 
 class Object(Type):
     def to_schema(self):
+        # TODO: detect inconsistency between "only" and a "_" property wildcard
         pairs = self.kwargs.get("properties", {})
         card_min, card_max = self.kwargs.get("cardinal", (None, None))
         r = {"type": "object"}
@@ -153,7 +173,8 @@ class Object(Type):
         )
 
         if 'property_names' in self.kwargs:
-            r['propertyNames'] = {"pattern": self.kwargs['property_names']}
+            r['propertyNames'] = self.kwargs['property_names'].to_schema()
+            # TODO it would be neat to accept definitions here
 
         if card_min is not None:
             if card_min > implicit_card_min:

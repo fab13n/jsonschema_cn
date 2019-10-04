@@ -121,8 +121,20 @@ class JSCNVisitor(NodeVisitor):
         except json.JSONDecodeError:
             raise ValueError(f"{source} is not a valid JSON fragment")
 
-    def visit_object_empty(self, node, c) -> T.Object:
+    def visit_object_keyword(self, node, c) -> T.Object:
         return T.Object(additional_properties=True, cardinal=c[-1])
+
+    def visit_object_empty(self, node, c) -> T.Object:
+        kwargs = {}
+        _, (only, only_regex), _, kwargs['cardinal'] = self.unspace(c)
+        if not only:
+            kwargs['additional_properties'] = True
+        elif only_regex is not None:
+            kwargs['additional_properties'] = True
+            kwargs['property_names'] = only_regex
+        else:
+            kwargs['additional_properties'] = False
+        return T.Object(**kwargs)
 
     def visit_object_non_empty(self, node, c) -> T.Object:
         _, (only, only_regex), first_field, others_with_commas, _, card = self.unspace(c)
@@ -149,13 +161,12 @@ class JSCNVisitor(NodeVisitor):
         return T.ObjectProperty(None, True, self.unspace(c, 2))
 
     def visit_object_only(self, node, c) -> Tuple[bool, Optional[str]]:
-        """Parse `only`, `only r"<pattern>"` and `only r"pattern",`."""
+        """Parse `only`, `only <pattern>` and `only <pattern>,`."""
         if len(c) == 0:  # Empty sequence
-            return (False, None)
+            return False, None
         maybe_regex = self.unspace(c[0], 1)
         if len(maybe_regex):
-            r = maybe_regex[0]
-            return True, r.kwargs['regex']
+            return True, maybe_regex[0][0]
         else:
             return True, None
 

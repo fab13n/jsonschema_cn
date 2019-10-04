@@ -54,14 +54,15 @@ card_1 = lit_integer
 card_min = lit_integer _ comma? _ wildcard
 card_max = wildcard _ comma? _ lit_integer
 
-object = object_empty / object_non_empty
-object_empty = ((lbrace _ rbrace) / kw_object) opt_cardinal
+object = object_empty / object_non_empty / object_keyword
+object_empty = lbrace _ object_only _ rbrace opt_cardinal
+object_keyword = kw_object opt_cardinal
 object_non_empty = lbrace _
                    object_only _
                    object_property (_ comma _ object_property)* _
                    rbrace
                    opt_cardinal
-object_only = (only _ lit_regex? _ comma?)?
+object_only = (only _ (lit_regex/def_pointer)? _ comma?)?
 object_property = object_unnamed_pair / object_pair
 object_unnamed_pair = wildcard _ colon _ object_pair_type
 object_pair = object_pair_name _ question? _ colon _ object_pair_type
