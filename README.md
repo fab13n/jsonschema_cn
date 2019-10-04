@@ -66,7 +66,8 @@ Objects are described between curly braces:
   properties with any names, but all containing strings.
 * Property names can be forced to respect a regular expression, with
   `only <regex>` prefix, e.g. `{only r"[0-9]+" _: integer}` will only
-  accept integer-to-integer maps.
+  accept integer-to-integer maps. References to definitions are also
+  accepted, as in `{only <int_string>} where int_string = r"[0-9]+"`.
 
 
 Types can be combined:
@@ -210,17 +211,24 @@ a smarter JSON formatter, which tries to effectively use both your
 screen's width and height, by only inserting q carriage returns when
 it makes sense:
 
-    $ echo '{only codes: [<byte>+], id: r"[a-z]+", issued: f"date"}' > schema.cn
+    $ cat >schema.cn <<EOF
 
-    $ cat schema.cn | jscn -
+    { only codes: [<byte>+], id: r"[a-z]+", issued: f"date"}
+    where byte = integer{0, 0xFF}
+    EOF
+
+    $ jscn schema.cn
+
     {"type": "object", "required": ["codes", "id", "issued"], "properties": {
     "codes": {"type": "array", "items": [{"$ref": "#/definitions/byte"}], "ad
     ditionalItems": {"$ref": "#/definitions/byte"}}, "id": {"type": "string",
     "pattern": "[a-z]+"}, "issued": {"type": "string", "format": "date"}}, "a
-    dditionalProperties": false, "$schema": "http://json-schema.org/draft-07/
-    schema#"}
+    dditionalProperties": false, "definitions": {"byte": {"type": "integer",
+    "minimum": 0, "maximum": 255}}, "$schema": "http://json-schema.org/draft-
+    07/schema#"}
 
     $ cat schema.cn | jscn - | jsview -
+
     {
       "type": "object",
       "required": ["codes", "id", "issued"],
@@ -233,6 +241,7 @@ it makes sense:
         "id": {"type": "string", "pattern": "[a-z]+"},
         "issued": {"type": "string", "format": "date"}
       },
-    "additionalProperties": false,
-    "$schema": "http://json-schema.org/draft-07/schema#"
+      "additionalProperties": false,
+      "definitions": {"byte": {"type": "integer", "minimum": 0, "maximum": 255}},
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
