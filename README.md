@@ -14,7 +14,7 @@ from JSON schemas back to a compact notation.
 Informal grammar
 ----------------
 
-Litteral types are accessible as keywords: `boolean`, `string`,
+Litteral JSON types are accessible as keywords: `boolean`, `string`,
 `integer`, `number`, `null`.
 
 Regular expression strings are represented by `r`-prefixed litteral
@@ -26,10 +26,9 @@ strings: `f"uri""` converts into `{"type": "string", "format":
 "uri"}`.
 
 JSON constants are introduced between back-quotes: `` `123` ``
-converts to `{"const": 123`}. If several constants are joined with an
-`|` operator, they are translated into an enum: `` `1`|`2` `` converts to
-`{"enum": [1, 2]}`.
-
+converts to `{"const": 123}`. If several constants are joined with an
+`|` operator, they are translated into an enum: `` `1`|`2` `` converts
+to `{"enum": [1, 2]}`.
 
 Arrays are described between square brackets:
 
@@ -48,7 +47,8 @@ Arrays are described between square brackets:
   `[unique integer+]`, which will allow `[1, 2, 3]` but not `[1, 2, 1]`.
 
 Strings and integers also support cardinal suffixes,
-e.g. `string{16}`, `integer{_, 0xFFFF}`.
+e.g. `string{16}`, `integer{_, 0xFFFF}`. Integer ranges as well as
+sizes are inclusive.
 
 Objects are described between curly braces:
 
@@ -58,15 +58,15 @@ Objects are described between curly braces:
   integer, and possibly other fields.
 * To prevent other fields from being accepted, use a prefix `only`, as in
   `{only "bar": integer}`.
-* Quotes are optional around property names, is they are identifiers other
+* Quotes are optional around property names, if they are identifiers other
   than `"_"` or `"only"`: it's legal to write `{bar: integer}`.
 * The wildcard property name `_` gives a type constraint on every
   extra property, e.g.  `{"bar": integer, _: string}` is an object
   with a field `"bar"` of type integer, and optionally other
   properties with any names, but all containing strings.
 * Property names can be forced to respect a regular expression, with
-`only <regex>` prefix, e.g. `{only r"[0-9]+" _: integer}` will only accept
-integer-to-integer maps.
+  `only <regex>` prefix, e.g. `{only r"[0-9]+" _: integer}` will only
+  accept integer-to-integer maps.
 
 
 Types can be combined:
@@ -78,13 +78,19 @@ Types can be combined:
   over `|`, i.e. `A & B | C & D` is to be read as `(A&B) | (C&D)`.
 * parentheses can be added, e.g. `A & (B|C) & D`
 
+A top-level schema may contain definitions. They are listed after the
+main schema, separated by a `where` keyword from it, and separated
+from each other by `and`. References to definitions must appear
+between angle bracket `<...>`. For instance, `{source: <id>, dest:
+<id>} where id = r"[a-z]+"`.
+
 More formally
 -------------
 
     schema ::= type («where» identifier «=» type «and» ...)+
 
-    type ::= type & type            # allOf those types; takes precedence over «|».
-           | type | type            # anyOf those types.
+    type ::= type «&» type          # allOf those types; takes precedence over «|».
+           | type «|» type          # anyOf those types.
            | «(» type «)»           # parentheses to enforce precedence.
            | «not» type             # anything but this type.
            | «`»json_litteral«`»    # just this JSON constant value.
@@ -114,7 +120,7 @@ More formally
              # if «?» occurs, the preceding property is optional, otherwise it's required.
 
     object_key ::= identifier    # Litteral property name.
-                 | «"»string«"»  # Propertoes which aren't identifier must be quoted.
+                 | «"»string«"»  # Properties which aren't identifiers must be quoted.
                  | «_»           # Properties not explicitly listed must match the following type.
 
     array ::= «[» «only»? «unique»? (type «,»)* («*»|«+»|ø) «]» cardinal?
@@ -125,17 +131,13 @@ More formally
             # if «+» occurs, the last type can be repeated from 1 to any times.
             # Every extra item must be of that type.
 
+    int ::= /0x[0-9a-FA-F]+/ | /[0-9]+/
+    identifier ::= /[A-Za-z_][A-Za-z_0-9]*/
+
 TODO
 ----
 
-WILL DO:
-
-* support for prefix `not`: `[not null*]` an array without null values.
-* shared definitions: `{"source": <ident>, "destination": <ident>} where
-  ident = r"[A-Z]{16}" and unused = boolean` will create and use an
-  `ident` definition, create an `unused` definition without using it.
-
-MAY DO:
+Some things that may be added in future versions
 
 * on objects:
     * limited support for dependent object fields, e.g.
@@ -161,13 +163,11 @@ MAY DO:
 * optional marker: `foobar?` is equivalent to `foobar|null`.
   Not sure whether it's worth it, the difference between a missing field and
   a field holding `null` is most commonly not significant.
-  
-WON'T DO:
-
-* Support for `"oneOf"`. In my experience, `"anyOf"` is always enough.
 
 Usage
 -----
+
+From Python:
 
     >>> import jsonschema_cn
     >>> jsonschema_cn.tojson("[integer, boolean+]{4}")
@@ -179,32 +179,60 @@ Usage
         "additionalItems": {"type": "boolean"},
     }'''
 
-Optimization notes
-------------------
+From command line:
 
-In the future, one might consider schema simplifications. Among things to be considered:
+    $ echo -n '[integer*]' | jscn -
+    { "type": "array",
+      "items": {"type": "integer"},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
 
-* Remplace `A&B` with `false` when `A` and `B` are incompatible
-* Merge object constraints
-* Merge arrays constraints? Not as obviously useful as object constraints
-* Simplify cardinal constraints
-* Perform the `const1 | ... | constn` to `enum` conversion as a simplification
-* Remove `"type"` indicator when another key carries the constraint?
-  (`"properties"`, `"items"`, `"format"`...)
+    $ jscn --help
+    usage: jscn [-h] [-v] [-o OUTPUT] [filename]
 
-From schema back to CN
-----------------------
+    Convert from a compact DSL into full JSON schema.
 
-In the future, one might consider translating JSON Schemas back to
-compact notations. Again, it moslty makes sens with CN-level
-simplifications. This would be a two-step process:
+    positional arguments:
+    filename              Input file; use '-' to read from stdin.
 
-* parse JSON-schema into a `tree.Type` Not clear whether there would
-  be many cases of un-translatable schemas, nor whether a minimal tree
-  representation would be easy to figure out. There's no canonical
-  tree for a given schema, e.g. `[string, integer+]` and
-  `[string, integer*]{2}` denote the same objects, and it's not
-  obvious whether one is better than the other.
+    optional arguments:
+    -h, --help            show this help message and exit
+    -v, --verbose         Verbose output
+    -o OUTPUT, --output OUTPUT
+    Output file; defaults to stdout
 
-* print a tree back into source. This part should be more
-  straightforward, offered as a method on `tree.Type` subclasses.
+See also
+--------
+
+If you spend a lot of time dealing with complex JSON data structures,
+you might also want to try [jsview](https://github.com/fab13n/jsview),
+a smarter JSON formatter, which tries to effectively use both your
+screen's width and height, by only inserting q carriage returns when
+it makes sense:
+
+    $ echo '{only codes: [<byte>+], id: r"[a-z]+", issued: f"date"}' > schema.cn
+
+    $ cat schema.cn | jscn -
+    {"type": "object", "required": ["codes", "id", "issued"], "properties": {
+    "codes": {"type": "array", "items": [{"$ref": "#/definitions/byte"}], "ad
+    ditionalItems": {"$ref": "#/definitions/byte"}}, "id": {"type": "string",
+    "pattern": "[a-z]+"}, "issued": {"type": "string", "format": "date"}}, "a
+    dditionalProperties": false, "$schema": "http://json-schema.org/draft-07/
+    schema#"}
+
+    $ cat schema.cn | jscn - | jsview -
+    {
+      "type": "object",
+      "required": ["codes", "id", "issued"],
+      "properties": {
+        "codes": {
+          "type": "array",
+          "items": [{"$ref": "#/definitions/byte"}],
+          "additionalItems": {"$ref": "#/definitions/byte"}
+        },
+        "id": {"type": "string", "pattern": "[a-z]+"},
+        "issued": {"type": "string", "format": "date"}
+      },
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+    }
