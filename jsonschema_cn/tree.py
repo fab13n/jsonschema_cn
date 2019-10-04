@@ -21,17 +21,36 @@ class Type(ABC):
         ]
         return f"{self.__class__.__name__}({', '.join(a)})"
 
+    def _combine(self, other, op):
+        args = []
+        for it in (self, other):
+            if isinstance(it, Operator) and it.args[0] == op:
+                args.extend(it.args[1:])
+            else:
+                args.append(it)
+        return Operator(op, *args)
+
+    def __and__(self, other):
+        return self._combine(other, 'allOf')
+
+    def __or__(self, other):
+        return self._combine(other, 'anyOf')
+
+    def __not__(self):
+        return Not(self)
     __repr__ = __str__
 
 
 class Entry(Type):
     def to_schema(self):
         r = self.args[0].to_schema()
-        definitions = self.kwargs.get("definitions")
+        definitions = self.args[1]
         if definitions:
             r["definitions"] = {k: v.to_schema() for k, v in definitions.items()}
         r["$schema"] = "http://json-schema.org/draft-07/schema#"
         return r
+
+    # TODO let operators | & not go through
 
 
 class Integer(Type):
@@ -83,6 +102,13 @@ class Operator(Type):
         op = self.args[0]
         args = self.args[1:]
         return {op: [a.to_schema() for a in args]}
+
+
+class Not(Type):
+    def __not__(self):
+        return self.args[0]
+    def to_schema(self):
+        return {"not": self.args[0].to_schema()}
 
 
 class Enum(Type):
@@ -186,3 +212,8 @@ class Array(Type):
             r['uniqueItems'] = True
 
         return r
+
+
+class Pointer(Type):
+    def to_schema(self):
+        return {"$ref": "#/definitions/" + self.args[0]}

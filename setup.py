@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
 
 with open("jsonschema_cn/__init__.py") as fh:
-    version = re.search(r'^__version__\s*=\s*"(.*)"', fh.read(), re.M).group(1)
+    version = re.search(r'^__version__\s*=\s*["\'](.*)["\']', fh.read(), re.M).group(1)
 
 
 setup(name='jsonschema_cn',

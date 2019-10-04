@@ -1,6 +1,6 @@
 from parsimonious import NodeVisitor
 from collections import Sequence
-from typing import Tuple, Optional, Set
+from typing import Tuple, Optional, Set, Dict
 import json
 
 from . import tree as T
@@ -37,7 +37,8 @@ class JSCNVisitor(NodeVisitor):
         return self.WHITESPACE_TOKEN
 
     def visit_entry(self, node, c) -> T.Entry:
-        return T.Entry(self.unspace(c, 0))
+        type, definitions = self.unspace(c)
+        return T.Entry(type, definitions)
 
     def visit_sequence_and(self, node, c) -> T.Type:
         first, rest = self.unspace(c)
@@ -57,6 +58,9 @@ class JSCNVisitor(NodeVisitor):
             return T.Enum(*constants)
         else:
             return T.Operator("oneOf", first, *(item[1] for item in rest))
+
+    def visit_not_type(self, node, c) -> T.Not:
+        return T.Not(self.unspace(c, 1))
 
     def visit_string(self, node, c) -> T.String:
         _, cardinal = self.unspace(c)
@@ -201,11 +205,26 @@ class JSCNVisitor(NodeVisitor):
         # This rule is space-free
         if len(c) == 0:
             return None
-        t = node.children[0].text
-        if t.endswith("..."):
-            return "..."
         else:
-            return t
+            return node.children[0].text
+
+    def visit_opt_definitions(self, node, c) -> Dict[str, T.Type]:
+        if len(c) == 0:  # Empty definition
+            return {}
+        _, first_def, other_defs_with_and = self.unspace(c[0])
+        other_defs = [d[1] for d in other_defs_with_and]
+        items = (first_def, *other_defs)
+        return dict(items)
+
+    def visit_definition(self, node, c) -> Tuple[str, T.Type]:
+        id, _, type = self.unspace(c)
+        return (id, type)
+
+    def visit_def_identifier(self, node, c) -> str:
+        return node.text
+
+    def visit_def_pointer(self, node, c) -> T.Pointer:
+        return T.Pointer(c[1])
 
     def generic_visit(self, node, c) -> tuple:
         """ The generic visit method. """
@@ -219,3 +238,4 @@ class JSCNVisitor(NodeVisitor):
             return unspaced_c[n]
         else:
             raise ValueError(f"bad SHELL_EXPRESSIONS for {node.expr_name}")
+

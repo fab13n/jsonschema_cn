@@ -3,9 +3,9 @@ from parsimonious import Grammar
 
 grammar = Grammar(
     r"""
-entry = _ sequence_or _
+entry = _ sequence_or _ opt_definitions _
 type = litteral / string / object / integer / array /
-       lit_regex / lit_format / constant / parens
+       lit_regex / lit_format / constant / parens / not_type / def_pointer
 parens = lparen _ sequence_or _ rparen
 sequence_or = sequence_and (_ or _ sequence_and)*
 sequence_and = type (_ and _ type)*
@@ -23,11 +23,14 @@ string = "string" _ opt_cardinal
 integer = "integer" _ opt_cardinal _ opt_multiple
 opt_multiple = ("/" _ lit_integer)?
 
+not_type = not _ type
+
 regex_prefix = "r"
 format_prefix = "f"
 wildcard = "_"
 or = "|"
 and = "&"
+not = "not"
 lparen = "("
 rparen = ")"
 lbrace = "{"
@@ -75,6 +78,14 @@ array_non_empty = lbracket _ array_prefix _
                   opt_cardinal
 array_prefix = ((only / unique) _) *
 array_extra = (plus / star)?
+
+opt_definitions = (def_where _ definition (_ def_and _ definition)*)?
+definition = def_identifier _ def_equal _ sequence_or
+def_where = "where"
+def_and = "and"
+def_equal = "="
+def_pointer = "<" def_identifier ">"
+def_identifier = ~"[A-Za-z_][-A-Za-z_0-9]*"
 
 _ = meaninglessness*
 meaninglessness = ~r"\s+" / comment
