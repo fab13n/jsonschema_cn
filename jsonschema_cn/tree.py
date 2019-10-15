@@ -1,22 +1,23 @@
 from abc import ABC, abstractmethod
-from typing import NamedTuple, Optional, Set
+from typing import NamedTuple, Optional, Set, Tuple
 import json
 import jsonschema
 
 
 class Type(ABC):
-    def __init__(self, *args, **kwargs):
-        self.args = args
-        self.kwargs = kwargs
+
+    KWARG_NAMES: Tuple[str, ...] = ()
+
+    def __init__(self, **kwargs):
+        for name in self.KWARG_NAMES:
+            setattr(self, name, kwargs[name])
 
     @abstractmethod
     def to_jsonschema(self):
         pass
 
     def __str__(self):
-        a = [str(arg) for arg in self.args] + [
-            k + "=" + str(v) for k, v in self.kwargs.items()
-        ]
+        a = [k + "=" + str(getattr(self, k)) for k in self.KWARG_NAMES]
         return f"{self.__class__.__name__}({', '.join(a)})"
 
     __repr__ = __str__
@@ -24,13 +25,15 @@ class Type(ABC):
 
 class Schema(Type):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._jsonschema = None
+    KWARG_NAMES = ("value", "definitions")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._jsonschema = None  # Will be filled as a cache on demand
 
     def to_jsonschema(self, check_definitions=True):
-        r = self.args[0].to_jsonschema()
-        definitions = self.args[1].args[0]
+        r = self.value.to_jsonschema()
+        definitions = self.definitions.values
         if definitions:
             r["definitions"] = {k: v.to_jsonschema() for k, v in definitions.items()}
         if check_definitions:
@@ -41,7 +44,7 @@ class Schema(Type):
         return r
 
     def get_references(self, x) -> Set[str]:
-        """Extract every definition usage from a schema, so that it can be checked
+        """Extract every definition usage from a jsonschema, so that it can be checked
         that they are all defined."""
         if isinstance(x, dict):
             if "$ref" in x:
@@ -56,17 +59,20 @@ class Schema(Type):
     def _combine(self, other, op):
         args = []
         if isinstance(other, Schema):
+            # Two schemas: combine main entries and merge defition dicts
             for schema in (self, other):
-                content = schema.args[0]
-                if isinstance(content, Operator) and content.args[0] == op:
-                    args.extend(content.args[1:])
+                content = schema.value
+                if isinstance(content, Operator) and content.operator == op:
+                    args.extend(content.values)  # Flatten associative operations
                 else:
-                    args.append(it)
-            combined_content = Operator(op, *args)
-            combined_defs = self.args[1] | other.args[1]
-            return Schema(combined_content, combined_defs)
+                    args.append(content)
+            combined_content = Operator(operator=op, values=args)
+            combined_defs = self.definitions | other.definitions
+            return Schema(value=combined_content, definitions=combined_defs)
         elif op == 'anyOf' and isinstance(other, Definitions):
-            combined_defs = self.args[1] | other
+            # Schema + additional definitions
+            # TODO Maybe '+' is a more appropriate operator than '|'?
+            combined_defs = self.defitions | other
             return Schema(self.args[0], combined_defs)
         else:
             raise ValueError("Schemas can only be combined with each other")
@@ -94,17 +100,19 @@ class Schema(Type):
 
 class Definitions(Type):
 
+    KWARG_NAMES = ("values",)
+
     def to_jsonschema(self):
-        return {k: v.to_jsonschema() for k, v in self.args[0].items()}
+        return {k: v.to_jsonschema() for k, v in self.values.items()}
 
     def __or__(self, other):
         if isinstance(other, Definitions):
-            overlap = set(self.args[0].keys()) & set(other.args[0].keys())
+            overlap = set(self.values.keys()) & set(other.values.keys())
             if overlap:
                 conflicts = ", ".join(sorted(overlap))
                 raise ValueError("Cannot merge definitions, conflict over {conflicts}")
-            defs = dict(self.args[0])
-            defs.update(other.args[0])
+            defs = dict(self.values)
+            defs.update(other.values)
             return Definitions(defs)
         elif isinstance(other, Schema):
             return other | self
@@ -113,66 +121,67 @@ class Definitions(Type):
 
 
 class Integer(Type):
+
+    KWARG_NAMES = ("cardinal", "multiple")
+
     def to_jsonschema(self):
-        (card_min, card_max) = self.kwargs["cardinal"]
-        mult = self.kwargs["multiple"]
+        (card_min, card_max) = self.cardinal
         r = {"type": "integer"}
         if card_min is not None:
             r["minimum"] = card_min
         if card_max is not None:
             r["maximum"] = card_max
-        if mult is not None:
-            r["multipleOf"] = mult
+        if self.multiple is not None:
+            r["multipleOf"] = self.multiple
         return r
 
 
 class String(Type):
+
+    KWARG_NAMES = ("cardinal", "format", "regex")
+
     def to_jsonschema(self):
-        card = self.kwargs.get("cardinal", (None, None))
         r = {"type": "string"}
-        if card is None:
-            return r
-        if isinstance(card, int):
-            card = (card, card)
-        card_min, card_max = card
+        card_min, card_max = self.cardinal
         if card_min is not None:
             r["minLength"] = card_min
         if card_max is not None:
             r["maxLength"] = card_max
-        if "format" in self.kwargs:
-            r["format"] = self.kwargs["format"]
-        if "regex" in self.kwargs:
-            r["pattern"] = self.kwargs["regex"]
+        if self.format is not None:
+            r["format"] = self.format
+        if self.regex is not None:
+            r["pattern"] = self.regex
         return r
 
 
 class Litteral(Type):
+    KWARG_NAMES = ("value",)
     def to_jsonschema(self):
-        return {"type": self.args[0]}
+        return {"type": self.value}
 
 
 class Constant(Type):
+    KWARG_NAMES = ("value",)
     def to_jsonschema(self):
-        return {"const": self.args[0]}
+        return {"const": self.value}
 
 
 class Operator(Type):
+    KWARG_NAMES = ("operator", "values")
     def to_jsonschema(self):
-        op = self.args[0]
-        args = self.args[1:]
-        return {op: [a.to_jsonschema() for a in args]}
+        return {self.operator: [v.to_jsonschema() for v in self.values]}
 
 
 class Not(Type):
-    def __not__(self):
-        return self.args[0]
+    KWARG_NAMES = ("value",)
     def to_jsonschema(self):
-        return {"not": self.args[0].to_jsonschema()}
+        return {"not": self.value.to_jsonschema()}
 
 
 class Enum(Type):
+    KWARG_NAMES = ("values",)
     def to_jsonschema(self):
-        return {"enum": list(self.args)}
+        return {"enum": list(self.values)}
 
 
 class ObjectProperty(NamedTuple):
@@ -182,14 +191,16 @@ class ObjectProperty(NamedTuple):
 
 
 class Object(Type):
+
+    KWARG_NAMES = ("properties", "cardinal", "additional_properties", "property_names")
+
     def to_jsonschema(self):
         # TODO: detect inconsistency between "only" and a "_" property wildcard
-        pairs = self.kwargs.get("properties", {})
-        card_min, card_max = self.kwargs.get("cardinal", (None, None))
+        card_min, card_max = self.cardinal
         r = {"type": "object"}
         properties = {}
         required = []
-        for (k, opt, v) in pairs:
+        for (k, opt, v) in self.properties:
             if k is None:
                 r["additionalProperties"] = v.to_jsonschema()
                 continue
@@ -201,21 +212,17 @@ class Object(Type):
             r["required"] = required
         if properties:
             r["properties"] = properties
-        if (
-            not self.kwargs.get("additional_properties")
-            and "additionalProperties" not in r
-        ):
+        if not self.additional_properties and "additionalProperties" not in r:
             r["additionalProperties"] = False
+
+        if self.property_names is not None:
+            r['propertyNames'] = self.property_names.to_jsonschema()
+            # TODO it would be neat to accept definitions here
 
         implicit_card_min = len(required)
         implicit_card_max = (
             len(properties) if r.get("additionalProperties") is False else None
         )
-
-        if 'property_names' in self.kwargs:
-            r['propertyNames'] = self.kwargs['property_names'].to_jsonschema()
-            # TODO it would be neat to accept definitions here
-
         if card_min is not None:
             if card_min > implicit_card_min:
                 r["minProperties"] = card_min
@@ -223,7 +230,6 @@ class Object(Type):
                 raise ValueError(
                     f"Can only have up to {implicit_card_max} properties, not {card_min}"
                 )
-
         if card_max is not None:
             if implicit_card_max is None or card_max < implicit_card_max:
                 r["maxProperties"] = card_max
@@ -235,26 +241,29 @@ class Object(Type):
 
 
 class Array(Type):
+
+    KWARG_NAMES = ("items", "additional_items", "cardinal", "unique")
+
     def to_jsonschema(self):
-        types = self.kwargs["types"]
-        extra_type = self.kwargs["additional_types"]
-        card_min, card_max = self.kwargs["cardinal"]
+        #types = self.kwargs["types"]
+        #extra_type = self.kwargs["additional_types"]
+        #card_min, card_max = self.kwargs["cardinal"]
         r = {"type": "array"}
 
-        if types:  # Tuple array
-            r["items"] = [t.to_jsonschema() for t in types]
-            if extra_type is False:  # No extra items allowed
+        if self.items:  # Tuple array
+            r["items"] = [item.to_jsonschema() for item in self.items]
+            if self.additional_items is False:  # No extra items allowed
                 r["additionalItems"] = False
-            elif extra_type is True:  # Extra items with any type
+            elif self.additional_items is True:  # Extra items with any type
                 pass
-            else:  # Forced type for extra items
-                r["additionalItems"] = extra_type.to_jsonschema()
-        elif isinstance(extra_type, Type):  # List array with homogeneous type
-            r["items"] = extra_type.to_jsonschema()
+            else:  # extra items allowed, but wiht a constrained type
+                r["additionalItems"] = self.additional_items.to_jsonschema()
+        elif isinstance(self.additional_items, Type):  # List array with homogeneous type
+            r["items"] = self.additional_items.to_jsonschema()
 
-        implicit_card_min = len(types)
-        implicit_card_max = len(types) if extra_type is False else None
-
+        card_min, card_max = self.cardinal
+        implicit_card_min = len(self.items)
+        implicit_card_max = len(self.items) if self.additional_items is False else None
         if card_min is not None and card_min > implicit_card_min:
             r["minItems"] = card_min
             if implicit_card_max is not None and card_min > implicit_card_max:
@@ -269,12 +278,13 @@ class Array(Type):
             if implicit_card_max is None or card_max < implicit_card_max:
                 r["maxItems"] = card_max
 
-        if self.kwargs.get("unique"):
+        if self.unique:
             r['uniqueItems'] = True
 
         return r
 
 
-class Pointer(Type):
+class Reference(Type):
+    KWARG_NAMES = ("value",)
     def to_jsonschema(self):
-        return {"$ref": "#/definitions/" + self.args[0]}
+        return {"$ref": "#/definitions/" + self.value}

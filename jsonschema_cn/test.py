@@ -1,16 +1,13 @@
 import unittest
-from . import to_schema, to_json
+from . import Schema, Definitions
 import json
 
 class TestJSCN(unittest.TestCase):
 
     def cmp(self, src: str,sch: dict) -> None:
-        sch2 = to_schema(src)
+        sch2 = Schema(src).to_jsonschema()
         del sch2['$schema']
         self.assertDictEqual(sch2, sch)
-
-    def test_to_json(self):
-        self.assertEqual(json.dumps(to_schema("integer")), to_json("integer"))
 
     def test_simple(self):
         self.cmp("boolean", {"type": "boolean"})
@@ -105,17 +102,17 @@ class TestJSCN(unittest.TestCase):
         })
 
     def test_xxx(self):
-        to_schema(r"""{
+        Schema(r"""{
             kind: `"aircraft"`,
             mission: string
         } | {
             kind: `"mission"`,
             name: string,
             fleet: {only <id>, _: string}
-        } where id = r"[a-z]+" """)
+        } where id = r"[a-z]+" """).to_jsonschema()
 
     def test_yyy(self):
-        to_schema("""
+        Schema("""
         { instance: <plid>,
           ground: <plid>,
           mission: <plid>,
@@ -126,8 +123,7 @@ class TestJSCN(unittest.TestCase):
           color?: string,
           status?: string  # TODO bug in JSCN `"online"` | `"offline"`
         }
-        """)
+        """).to_jsonschema()
 
-        
 if __name__ == '__main__':
     unittest.main()

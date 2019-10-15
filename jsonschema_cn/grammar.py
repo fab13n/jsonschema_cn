@@ -5,7 +5,7 @@ grammar = Grammar(
     r"""
 schema = _ sequence_or _ opt_definitions _
 type = litteral / string / object / integer / array /
-       lit_regex / lit_format / constant / parens / not_type / def_pointer
+       lit_regex / lit_format / constant / parens / not_type / def_reference
 parens = lparen _ sequence_or _ rparen
 sequence_or = sequence_and (_ or _ sequence_and)*
 sequence_and = type (_ and _ type)*
@@ -76,7 +76,7 @@ object_non_empty = lbrace _
                    object_property (_ comma _ object_property)* _
                    rbrace
                    opt_cardinal
-object_only = (only _ (lit_regex/def_pointer)? _ comma?)?
+    object_only = (only _ (lit_regex/def_reference)? _ comma?)?
 object_property = object_unnamed_pair / object_pair
 object_unnamed_pair = wildcard _ colon _ object_pair_type
 object_pair = object_pair_name _ question? _ colon _ object_pair_type
@@ -100,7 +100,7 @@ definition = def_identifier _ def_equal _ sequence_or
 def_where = "where"
 def_and = "and"
 def_equal = "="
-def_pointer = "<" def_identifier ">"
+def_reference = "<" def_identifier ">"
 def_identifier = ~"[A-Za-z_][-A-Za-z_0-9]*"
 
 _ = meaninglessness*
