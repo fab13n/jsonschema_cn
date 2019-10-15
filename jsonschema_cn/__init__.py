@@ -4,19 +4,23 @@ from .tree import Type
 from typing import Any
 
 
-__version__ = "0.4"
+__version__ = "0.5"
 
 
-def to_tree(source: str) -> Type:
-    raw_tree = grammar.parse(source)
+def _parse(what: str, source: str, verbose=False) -> Any:
+    raw_tree = grammar[what].parse(source)
+    if verbose:
+        print("Raw output:", raw_tree)
     visitor = JSCNVisitor()
     parsed_tree = visitor.visit(raw_tree)
+    if verbose:
+        print("Parsed output:", parsed_tree)
     return parsed_tree
 
 
-def to_schema(source: str) -> Any:
-    return to_tree(source).to_schema()
+def Schema(source: str, verbose=False) -> tree.Schema:
+    return _parse('schema', source)
 
 
-def to_json(source: str) -> str:
-    return to_tree(source).to_json()
+def Definitions(source: str, verbose=False) -> tree.Definitions:
+    return _parse('definitions', source)

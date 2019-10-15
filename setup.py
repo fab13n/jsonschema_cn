@@ -28,7 +28,8 @@ setup(name='jsonschema_cn',
       license='BSD',
       packages=['jsonschema_cn'],
       install_requires=[
-          'parsimonious>=0.8.0'
+          'parsimonious>=0.8.0',
+          'jsonschema>=3.0.1'
       ],
       entry_points={
           "console_scripts": ['jscn = jsonschema_cn.cli:main']

@@ -93,6 +93,41 @@ class TestJSCN(unittest.TestCase):
     def test_array_card(self):
         pass
 
+    def test_where(self):
+        s = '{only <id>, _: <byte>} where id = r"[a-z]+" and byte = integer{0,0xFF}'
+        self.cmp(s, {
+            'additionalProperties': {'$ref': '#/definitions/byte'},
+            'definitions': {
+                'byte': {'maximum': 255, 'minimum': 0, 'type': 'integer'},
+                'id': {'pattern': '[a-z]+', 'type': 'string'}},
+            'propertyNames': {'$ref': '#/definitions/id'},
+            'type': 'object'
+        })
 
+    def test_xxx(self):
+        to_schema(r"""{
+            kind: `"aircraft"`,
+            mission: string
+        } | {
+            kind: `"mission"`,
+            name: string,
+            fleet: {only <id>, _: string}
+        } where id = r"[a-z]+" """)
+
+    def test_yyy(self):
+        to_schema("""
+        { instance: <plid>,
+          ground: <plid>,
+          mission: <plid>,
+          fleet: { only <plid> _: <aircraft> }
+        }
+        where plid = r"[A-Z0-9]{4}"
+        and aircraft = {
+          color?: string,
+          status?: string  # TODO bug in JSCN `"online"` | `"offline"`
+        }
+        """)
+
+        
 if __name__ == '__main__':
     unittest.main()

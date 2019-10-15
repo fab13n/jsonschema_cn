@@ -36,9 +36,9 @@ class JSCNVisitor(NodeVisitor):
     def visit__(self, node, c) -> object:
         return self.WHITESPACE_TOKEN
 
-    def visit_entry(self, node, c) -> T.Entry:
-        type, definitions = self.unspace(c)
-        return T.Entry(type, definitions)
+    def visit_schema(self, node, c) -> T.Schema:
+        main, definitions = self.unspace(c)
+        return T.Schema(main, definitions)
 
     def visit_sequence_and(self, node, c) -> T.Type:
         first, rest = self.unspace(c)
@@ -219,13 +219,18 @@ class JSCNVisitor(NodeVisitor):
         else:
             return node.children[0].text
 
-    def visit_opt_definitions(self, node, c) -> Dict[str, T.Type]:
+    def visit_opt_definitions(self, node, c) -> T.Definitions:
         if len(c) == 0:  # Empty definition
-            return {}
-        _, first_def, other_defs_with_and = self.unspace(c[0])
+            return T.Definitions({})
+        else:
+            _, defs = self.unspace(c[0])
+            return defs
+
+    def visit_definitions(self, node, c) -> T.Definitions:
+        first_def, other_defs_with_and = self.unspace(c)
         other_defs = [d[1] for d in other_defs_with_and]
         items = (first_def, *other_defs)
-        return dict(items)
+        return T.Definitions(dict(items))
 
     def visit_definition(self, node, c) -> Tuple[str, T.Type]:
         id, _, type = self.unspace(c)

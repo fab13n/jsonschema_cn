@@ -56,28 +56,29 @@ Objects are described between curly braces:
   `object`.
 * `{"bar": integer}` is an object with one field `"bar"` of type
   integer, and possibly other fields.
-* To prevent other fields from being accepted, use a prefix `only`, as in
-  `{only "bar": integer}`.
 * Quotes are optional around property names, if they are identifiers other
   than `"_"` or `"only"`: it's legal to write `{bar: integer}`.
 * The wildcard property name `_` gives a type constraint on every
   extra property, e.g.  `{"bar": integer, _: string}` is an object
   with a field `"bar"` of type integer, and optionally other
   properties with any names, but all containing strings.
-* Property names can be forced to respect a regular expression, with
-  `only <regex>` prefix, e.g. `{only r"[0-9]+" _: integer}` will only
-  accept integer-to-integer maps. References to definitions are also
+* To prevent other fields from being accepted, use a prefix `only`, as in
+  `{only "bar": integer}`.
+* To restrict additional property names without completely
+  forbidding them, a prefix constraint `only <regex>` can be added,
+  e.g. `{only r"[0-9]+" _: integer}` will only accept
+  integer-to-integer maps. References to definitions are also
   accepted, as in `{only <int_string>} where int_string = r"[0-9]+"`.
 
 
 Types can be combined:
 
-* with infix operator `&`: `A & B` is the type of objects which
+* With infix operator `&`: `A & B` is the type of objects which
   respect both schemas `A` and `B`.
-* with infix operator `|`: `A | B` is the type of objects which
+* With infix operator `|`: `A | B` is the type of objects which
   respect at least one of the schemas `A` or `B`. `&` takes precedence
   over `|`, i.e. `A & B | C & D` is to be read as `(A&B) | (C&D)`.
-* parentheses can be added, e.g. `A & (B|C) & D`
+* Parentheses can be added to enforce precedences , e.g. `A & (B|C) & D`
 
 A top-level schema may contain definitions. They are listed after the
 main schema, separated by a `where` keyword from it, and separated
@@ -138,32 +139,55 @@ More formally
 TODO
 ----
 
-Some things that may be added in future versions
+Some things that may be added in future versions:
 
 * on objects:
     * limited support for dependent object fields, e.g.
       `{"card_number": integer, "billing_address" if "card_number":
       string, ...}`.
 * on numbers:
-    * ranges over floats (reusing cardinal grammar with float boundaries)
+    * ranges over floats (reusing cardinal grammar with float
+      boundaries)
     * modulus constrains on floats `number/0.25`.
     * exclusive ranges in addition to inclusive ones. May use returned
       braces, e.g. `integer{0,0x100{` as an equivalent for
       `integer{0,0xFF}`?
-    * ranges alone are treated as integer ranges, i.e. `{1, 5}` is a shortcut
-      for `integer{1, 5}`? Not sure whether it enhances readability, and there
-      would be a need for float support in ranges then.
-* combine string constraints: regex, format, cardinals... This can
+    * ranges alone are treated as integer ranges, i.e. `{1, 5}` is a
+      shortcut for `integer{1, 5}`? Not sure whether it enhances
+      readability, and there would be a need for float support in
+      ranges then.
+* combine string constraints: regex, format, cardinals...  This can
   already be achieved with operator `&`.
-* add a few `"$comment"` fields for non-obvious translations. Use size of
-  notation vs. size of generated schema as a clue, plus the presence of such
-  a somment at a higher level in the tree.
-* support for `|`, `&` and `not` operators at Python's level? That would mean
-  exposing the resulting parse tree, whereas currently I directly export some
-  JSON. Would mosly make sens if schema simplification is supported.
-* optional marker: `foobar?` is equivalent to `foobar|null`.
-  Not sure whether it's worth it, the difference between a missing field and
-  a field holding `null` is most commonly not significant.
+* add a few `"$comment"` fields for non-obvious translations. Use size
+  of notation vs. size of generated schema as a clue, plus the
+  presence of such a somment at a higher level in the tree.
+* Implementation:
+    * write proper constructors for tree nodes.
+    * get `?` markers in grammar to the top level.
+    * factorize visit of symbol-separated lists, optional suffixes.
+    * rename Pointer->Reference.
+* Syntax sugar:
+    * optional marker: `foobar?` is equivalent to `foobar|null`.  Not
+      sure whether it's worth it, the difference between a missing
+      field and a field holding `null` is most commonly not
+      significant.
+    * tolerate `"foo"|"bar"` instead of `"foo"` | `"bar"`: bars don't
+      appear in JSON constants out of quoted strings.
+    * tolerate literal strings as constants, i.e. `"foo"` is
+      interpreted as `` `"foo"` ``. Would make the point above
+      irrelevant.
+    * tolerate chevrons around definitions, i.e `{_: <foo>} where
+      <foo> = ...` in addition to `{_: <foo>} where foo = ...`?
+    * tolerate literal regexes and references to regexes as object
+      keys. references raise issues, as we don't know locally whether
+      the reference points to a string, a regex or something else. The
+      resulting schema must be checked, at least to refuse references
+      to non-regexes, ideally to convert them into regular properties.
+    * tolerate `{only <foo>: <bar>}` as a shortcute for `{only <foo>
+      _: <bar>}`.
+* better error messages, on incorrect grammars, and on non-validating
+  JSON data.
+
 
 Usage
 -----

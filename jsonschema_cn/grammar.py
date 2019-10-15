@@ -3,7 +3,7 @@ from parsimonious import Grammar
 
 grammar = Grammar(
     r"""
-entry = _ sequence_or _ opt_definitions _
+schema = _ sequence_or _ opt_definitions _
 type = litteral / string / object / integer / array /
        lit_regex / lit_format / constant / parens / not_type / def_pointer
 parens = lparen _ sequence_or _ rparen
@@ -18,6 +18,20 @@ lit_regex = regex_prefix lit_string
 lit_format = format_prefix lit_string
 
 constant = ~"`[^`]+`"
+
+# Clearer definition of quoted strings
+# lit_string = quote non_quote* quote
+# quote = "\""
+# non_quote = escaped_character / r"[^\"]"
+# escaped_character = r"\\\\."
+
+# Allow quoted strings in JSON constants:
+# # 1. the barbaric way
+# constant = ~"[^\"]*(\"([^\"\\\\]|\\\\.)*\"[^\"]*)*"
+# # 2. the PEGgy way
+# constant = backquote (neither_quote_nor_backquote / lit_string)* backquote
+# backquote = "`"
+# neither_quote_nor_backquote = escaped_character / r"[^\"`]"
 
 string = "string" _ opt_cardinal
 integer = "integer" _ opt_cardinal _ opt_multiple
@@ -80,7 +94,8 @@ array_non_empty = lbracket _ array_prefix _
 array_prefix = ((only / unique) _) *
 array_extra = (plus / star)?
 
-opt_definitions = (def_where _ definition (_ def_and _ definition)*)?
+opt_definitions = (def_where _ definitions)?
+definitions = definition (_ def_and _ definition)*
 definition = def_identifier _ def_equal _ sequence_or
 def_where = "where"
 def_and = "and"

@@ -14,25 +14,32 @@ def main():
                         help="Verbose output")
     parser.add_argument('filename', nargs="?", default="-",
                         help="Input file; use '-' to read from stdin.")
+    parser.add_argument('--version', action='store_const', const=True, default=False,
+                        help="Display version and exit")
     args = parser.parse_args()
+
+    if args.version:
+        from . import __version__
+        print(f"JSON Schema compact notation v{__version__}.")
+        exit(0)
 
     input = open(args.filename, 'r') if args.filename != "-" else sys.stdin
     output = open(args.output, 'w') if args.output != "-" else sys.stdout
-    verbose = "-v" in sys.argv
 
     source = input.read()
     raw_tree = grammar.parse(source)
     visitor = JSCNVisitor()
-    if verbose:
+    if args.verbose:
         print("Raw output:", raw_tree)
     parsed_tree = visitor.visit(raw_tree)
-    if verbose:
+    if args.verbose:
         print("Parsed output:", parsed_tree)
-        schema = parsed_tree.to_schema()
+        schema = parsed_tree.to_jsonschema()
         print("Schema:", schema)
-        result = json.dumps(schema)
     else:
-        result = parsed_tree.to_json()
+        schema = parsed_tree.to_jsonschema()
+
+    result = json.dumps(schema)
 
     output.write(result+"\n")
     output.flush()
