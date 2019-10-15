@@ -39,7 +39,12 @@ def main():
     else:
         schema = parsed_tree.to_jsonschema()
 
-    result = json.dumps(schema)
+    try:
+        # TODO Try and guess TTY width
+        import jsview
+        result = jsview.dumps(schema)
+    except ModuleNotFoundError:
+        result = json.dumps(schema)
 
     output.write(result+"\n")
     output.flush()

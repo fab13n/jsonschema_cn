@@ -89,7 +89,9 @@ between angle bracket `<...>`. For instance, `{source: <id>, dest:
 More formally
 -------------
 
-    schema ::= type («where» identifier «=» type «and» ...)+
+    schema ::= type («where» definitions)?
+
+    definitions ::= identifier «=» type («and» identifier «=» type)*
 
     type ::= type «&» type          # allOf those types; takes precedence over «|».
            | type «|» type          # anyOf those types.
@@ -136,6 +138,8 @@ More formally
     int ::= /0x[0-9a-FA-F]+/ | /[0-9]+/
     identifier ::= /[A-Za-z_][A-Za-z_0-9]*/
 
+
+
 TODO
 ----
 
@@ -162,10 +166,10 @@ Some things that may be added in future versions:
   of notation vs. size of generated schema as a clue, plus the
   presence of such a somment at a higher level in the tree.
 * Implementation:
-    * write proper constructors for tree nodes.
-    * get `?` markers in grammar to the top level.
-    * factorize visit of symbol-separated lists, optional suffixes.
-    * rename Pointer->Reference.
+    * bubble up `?` markers in grammar to the top level.
+    * make lazy `jsonschema` property available everywhere.
+    * tolerate overlapping definitions as long as overlapping defs
+      are equal (relay on lazy `jsonschema` prop + Python dict equality).
 * Syntax sugar:
     * optional marker: `foobar?` is equivalent to `foobar|null`.  Not
       sure whether it's worth it, the difference between a missing
@@ -194,17 +198,9 @@ Usage
 
 From Python:
 
-    >>> import jsonschema_cn
-    >>> jsonschema_cn.tojson("[integer, boolean+]{4}")
-    '''{"$schema": "http://json-schema.org/draft-07/schema#",
-        "type": "array",
-        "minItems": 4,
-        "maxItems": 4,
-        "items": [{"type": "integer"}],
-        "additionalItems": {"type": "boolean"},
-    }'''
 
-From command line:
+
+### From command line
 
     $ echo -n '[integer*]' | jscn -
     { "type": "array",
@@ -213,18 +209,70 @@ From command line:
     }
 
     $ jscn --help
-    usage: jscn [-h] [-v] [-o OUTPUT] [filename]
+
+    usage: jscn [-h] [-o OUTPUT] [-v] [--version] [filename]
 
     Convert from a compact DSL into full JSON schema.
 
     positional arguments:
-    filename              Input file; use '-' to read from stdin.
+      filename              Input file; use '-' to read from stdin.
 
     optional arguments:
-    -h, --help            show this help message and exit
-    -v, --verbose         Verbose output
-    -o OUTPUT, --output OUTPUT
-    Output file; defaults to stdout
+      -h, --help            show this help message and exit
+      -o OUTPUT, --output OUTPUT
+                            Output file; defaults to stdout
+      -v, --verbose         Verbose output
+      --version             Display version and exit
+
+### From Python API
+
+Python's `jsonschema_cn` packaga exports two main constructors:
+
+* `Schema()`, which compiles a source string into a schema object;
+* `Definitions()`, which compiles a source string (a sequence of
+  definitions separated by keyword `and`, as in rule `definitions` of
+  the formal grammar.
+
+Schema objects have a `jsonschema` property, which contains the Python
+dict of the corresponding JSON schema.
+
+Schemas can be combined with Python operators `&` (`"allOf"`) and `|`
+(`"anyOf"`). When they have definitions, those definition sets are
+merged, and definition names must not overlap.
+
+Schemas can also be combined with definitions through `|`, and
+definitions can be combined together also with `|`.
+
+    >>> from jsonschema import Schema, Definitions
+
+    >>> defs = Definitions("""
+    >>>     id = r"[a-z]+" and
+    >>>     byte = integer{0,0xff}
+    >>> """)
+
+    >>> s = Schema("{only <id>: <byte>}") | defs
+    >>> s.jsonschema
+    ValueError: Missing definition for byte
+
+    >>> s = s | defs
+    >>> s.jsonschema
+    {"$schema": "http://json-schema.org/draft-07/schema#"
+      "type": "object",
+      "propertyNames": {"$ref": "#/definitions/id"},
+      "additionalProperties": {"$ref": "#/definitions/byte"},
+      "definitions": {
+        "id":   {"type": "string", "pattern": "[a-z]+"},
+        "byte": {"type": "integer", "minimum": 0, "maximum": 255}
+      }
+    }
+
+    >>> Schema("[integer, boolean+]{4}").jsonschema
+    { "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "array",
+      "minItems": 4, "maxItems": 4,
+      "items": [{"type": "integer"}],
+      "additionalItems": {"type": "boolean"},
+    }
 
 See also
 --------
