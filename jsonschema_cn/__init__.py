@@ -4,7 +4,7 @@ from .tree import Type
 from typing import Any
 
 
-__version__ = "0.5"
+__version__ = "0.6"
 
 
 def _parse(what: str, source: str, verbose=False) -> Any:

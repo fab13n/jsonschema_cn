@@ -125,5 +125,55 @@ class TestJSCN(unittest.TestCase):
         }
         """).to_jsonschema()
 
+    def test_prune(self):
+        s = Schema("""
+        {prop: <used_1>}
+        where used_1 = [<used_2>+]
+        and unused_1 = [<unused_2>+]
+        and used_2 = integer
+        and unused_2 = string
+        """)
+        self.assertSetEqual(
+            set(s.jsonschema['definitions'].keys()),
+            {'used_1', 'used_2'}
+        )
+
+    def test_combine_1(self):
+        s = Schema("""{prop: <used_1>}""")
+        d = Definitions("""
+        used_1 = [<used_2>+]
+        and unused_1 = [<unused_2>+]
+        and used_2 = integer
+        and unused_2 = string
+        """)
+        s |= d
+        self.assertSetEqual(
+            set(s.jsonschema['definitions'].keys()),
+            {'used_1', 'used_2'}
+        )
+
+    def test_combine_2(self):
+        s = Schema("{prop: <used_1>}") | \
+            Definitions("used_1 = [<used_2>+]") | \
+            Definitions("unused_1 = [<unused_2>+]") | \
+            Definitions("used_2 = integer") | \
+            Definitions("unused_2 = string")
+        self.assertSetEqual(
+            set(s.jsonschema['definitions'].keys()),
+            {'used_1', 'used_2'}
+        )
+
+    def test_combine_3(self):
+        """combine defs together before adding the result to the schema."""
+        s = Schema("{prop: <used_1>}") | (
+            Definitions("used_1 = [<used_2>+]") |
+            Definitions("unused_1 = [<unused_2>+]") |
+            Definitions("used_2 = integer") |
+            Definitions("unused_2 = string"))
+        self.assertSetEqual(
+            set(s.jsonschema['definitions'].keys()),
+            {'used_1', 'used_2'}
+        )
+
 if __name__ == '__main__':
     unittest.main()

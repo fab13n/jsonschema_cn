@@ -6,18 +6,26 @@ import jsonschema
 
 class Type(ABC):
 
-    KWARG_NAMES: Tuple[str, ...] = ()
+    CONSTRUCTOR_KWARGS: Tuple[str, ...] = ()
 
     def __init__(self, **kwargs):
-        for name in self.KWARG_NAMES:
+        self._jsonschema = None  # Will be filled as a cache on demand
+        for name in self.CONSTRUCTOR_KWARGS:
             setattr(self, name, kwargs[name])
 
     @abstractmethod
     def to_jsonschema(self):
         pass
 
+    @property
+    def jsonschema(self):
+        """Cached compilation of the corresponding jsonschema."""
+        if self._jsonschema is None:
+            self._jsonschema = self.to_jsonschema()
+        return self._jsonschema
+
     def __str__(self):
-        a = [k + "=" + str(getattr(self, k)) for k in self.KWARG_NAMES]
+        a = [k + "=" + str(getattr(self, k)) for k in self.CONSTRUCTOR_KWARGS]
         return f"{self.__class__.__name__}({', '.join(a)})"
 
     __repr__ = __str__
@@ -25,34 +33,58 @@ class Type(ABC):
 
 class Schema(Type):
 
-    KWARG_NAMES = ("value", "definitions")
+    CONSTRUCTOR_KWARGS = ("value", "definitions")
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self._jsonschema = None  # Will be filled as a cache on demand
-
-    def to_jsonschema(self, check_definitions=True):
+    def to_jsonschema(self, check_definitions=True, prune_definitions=True):
         r = self.value.to_jsonschema()
-        definitions = self.definitions.values
-        if definitions:
-            r["definitions"] = {k: v.to_jsonschema() for k, v in definitions.items()}
+        sdv: Dict[str, Type] = self.definitions.values
+        if sdv:
+            r["definitions"] = {k: v.to_jsonschema() for k, v in sdv.items()}
+        if sdv and prune_definitions:
+            self._prune_definitions(r)
         if check_definitions:
-            for k in self.get_references(r):
-                if k not in definitions.keys():
-                    raise ValueError(f"Missing definition for {k}")
+            self._check_definitions(r)
         r["$schema"] = "http://json-schema.org/draft-07/schema#"
         return r
 
-    def get_references(self, x) -> Set[str]:
-        """Extract every definition usage from a jsonschema, so that it can be checked
-        that they are all defined."""
+    def _check_definitions(self, schema):
+        """Verify that all references have their definition."""
+        occurring_references = self._get_references(schema)
+        for k in occurring_references:
+            if k not in self.definitions.values.keys():
+                raise ValueError(f"Missing definition for {k}")
+
+    def _prune_definitions(self, schema):
+        """Remove unused definitions. May iterate more than once, because
+        some references may be used in other definitions."""
+        occurring_references = self._get_references(schema)
+        eliminated_references = False
+        while True:
+            for k in list(schema['definitions'].keys()):
+                # Freeze the keys into a list, so that `del` won't interfere
+                if k not in occurring_references:
+                    del schema['definitions'][k]
+                    eliminated_references = True
+            if eliminated_references:
+                # Some unused references have been removed.
+                # By removing their definitions, maybe some other
+                # references became unused => try to prune again.
+                occurring_references = self._get_references(schema)
+                eliminated_references = False
+            else:
+                # Reached a fix-point, nothing left to eliminate
+                return
+
+    def _get_references(self, x) -> Set[str]:
+        """Extract every definition usage from a compiled jsonschema,
+        so that it can be checked that they are all defined."""
         if isinstance(x, dict):
             if "$ref" in x:
                 return {x["$ref"].rsplit("/", 1)[-1]}
             else:
-                return set.union(*(self.get_references(y) for y in x.values()))
+                return set.union(*(self._get_references(y) for y in x.values()))
         elif isinstance(x, list):
-            return set.union(*(self.get_references(y) for y in x))
+            return set.union(*(self._get_references(y) for y in x))
         else:
             return set()
 
@@ -72,10 +104,11 @@ class Schema(Type):
         elif op == 'anyOf' and isinstance(other, Definitions):
             # Schema + additional definitions
             # TODO Maybe '+' is a more appropriate operator than '|'?
-            combined_defs = self.defitions | other
-            return Schema(self.args[0], combined_defs)
+            combined_defs = self.definitions | other
+            return Schema(value=self.value, definitions=combined_defs)
         else:
             raise ValueError("Schemas can only be combined with each other")
+
 
     def __and__(self, other):
         return self._combine(other, 'allOf')
@@ -83,24 +116,25 @@ class Schema(Type):
     def __or__(self, other):
         return self._combine(other, 'anyOf')
 
-    @property
-    def jsonschema(self):
-        """Cached compilation of the corresponding jsonschema."""
-        if self._jsonschema is None:
-            self._jsonschema = self.to_jsonschema()
-        return self._jsonschema
+    # Conflicts with constructor argument of the same name
+    # @property
+    # def definitions(self):
+    #     self.jsonschema.get('definitions', {})
 
-    def validate(self, data):
-        jsonschema.validate(
-            data,
-            self.jsonschema,
-            format_checker=jsonschema.draft7_format_checker,
-        )
+    def validate(self, data=None):
+        if data is None:  # Validate the schema's syntax only
+            pass
+        else:  # Validate a piece of data against the schema
+            jsonschema.validate(
+                data,
+                self.jsonschema,
+                format_checker=jsonschema.draft7_format_checker,
+            )
 
 
 class Definitions(Type):
 
-    KWARG_NAMES = ("values",)
+    CONSTRUCTOR_KWARGS = ("values",)
 
     def to_jsonschema(self):
         return {k: v.to_jsonschema() for k, v in self.values.items()}
@@ -110,10 +144,10 @@ class Definitions(Type):
             overlap = set(self.values.keys()) & set(other.values.keys())
             if overlap:
                 conflicts = ", ".join(sorted(overlap))
-                raise ValueError("Cannot merge definitions, conflict over {conflicts}")
+                raise ValueError(f"Cannot merge definitions, conflict over {conflicts}")
             defs = dict(self.values)
             defs.update(other.values)
-            return Definitions(defs)
+            return Definitions(values=defs)
         elif isinstance(other, Schema):
             return other | self
         else:
@@ -122,7 +156,7 @@ class Definitions(Type):
 
 class Integer(Type):
 
-    KWARG_NAMES = ("cardinal", "multiple")
+    CONSTRUCTOR_KWARGS = ("cardinal", "multiple")
 
     def to_jsonschema(self):
         (card_min, card_max) = self.cardinal
@@ -138,7 +172,7 @@ class Integer(Type):
 
 class String(Type):
 
-    KWARG_NAMES = ("cardinal", "format", "regex")
+    CONSTRUCTOR_KWARGS = ("cardinal", "format", "regex")
 
     def to_jsonschema(self):
         r = {"type": "string"}
@@ -155,33 +189,39 @@ class String(Type):
 
 
 class Litteral(Type):
-    KWARG_NAMES = ("value",)
+    CONSTRUCTOR_KWARGS = ("value",)
     def to_jsonschema(self):
         return {"type": self.value}
 
 
 class Constant(Type):
-    KWARG_NAMES = ("value",)
+    CONSTRUCTOR_KWARGS = ("value",)
     def to_jsonschema(self):
         return {"const": self.value}
 
 
 class Operator(Type):
-    KWARG_NAMES = ("operator", "values")
+    CONSTRUCTOR_KWARGS = ("operator", "values")
     def to_jsonschema(self):
         return {self.operator: [v.to_jsonschema() for v in self.values]}
 
 
 class Not(Type):
-    KWARG_NAMES = ("value",)
+    CONSTRUCTOR_KWARGS = ("value",)
     def to_jsonschema(self):
         return {"not": self.value.to_jsonschema()}
 
 
 class Enum(Type):
-    KWARG_NAMES = ("values",)
+    CONSTRUCTOR_KWARGS = ("values",)
     def to_jsonschema(self):
         return {"enum": list(self.values)}
+
+
+class Reference(Type):
+    CONSTRUCTOR_KWARGS = ("value",)
+    def to_jsonschema(self):
+        return {"$ref": "#/definitions/" + self.value}
 
 
 class ObjectProperty(NamedTuple):
@@ -192,7 +232,7 @@ class ObjectProperty(NamedTuple):
 
 class Object(Type):
 
-    KWARG_NAMES = ("properties", "cardinal", "additional_properties", "property_names")
+    CONSTRUCTOR_KWARGS = ("properties", "cardinal", "additional_properties", "property_names")
 
     def to_jsonschema(self):
         # TODO: detect inconsistency between "only" and a "_" property wildcard
@@ -242,7 +282,7 @@ class Object(Type):
 
 class Array(Type):
 
-    KWARG_NAMES = ("items", "additional_items", "cardinal", "unique")
+    CONSTRUCTOR_KWARGS = ("items", "additional_items", "cardinal", "unique")
 
     def to_jsonschema(self):
         #types = self.kwargs["types"]
@@ -282,9 +322,3 @@ class Array(Type):
             r['uniqueItems'] = True
 
         return r
-
-
-class Reference(Type):
-    KWARG_NAMES = ("value",)
-    def to_jsonschema(self):
-        return {"$ref": "#/definitions/" + self.value}

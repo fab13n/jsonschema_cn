@@ -152,7 +152,7 @@ Some things that may be added in future versions:
 * on numbers:
     * ranges over floats (reusing cardinal grammar with float
       boundaries)
-    * modulus constrains on floats `number/0.25`.
+    * modulus constraints on floats `number/0.25`.
     * exclusive ranges in addition to inclusive ones. May use returned
       braces, e.g. `integer{0,0x100{` as an equivalent for
       `integer{0,0xFF}`?
@@ -165,6 +165,8 @@ Some things that may be added in future versions:
 * add a few `"$comment"` fields for non-obvious translations. Use size
   of notation vs. size of generated schema as a clue, plus the
   presence of such a somment at a higher level in the tree.
+* try to embedded `#`-comments as `"$comment"`? Gather them for each
+  `or_sequence` and `'\n'`-join them on top?
 * Implementation:
     * bubble up `?` markers in grammar to the top level.
     * make lazy `jsonschema` property available everywhere.
@@ -191,7 +193,8 @@ Some things that may be added in future versions:
       _: <bar>}`.
 * better error messages, on incorrect grammars, and on non-validating
   JSON data.
-
+* reciprocal feature: try and translate a JSON-schema into a shorter
+  and more readable JSCN source.
 
 Usage
 -----

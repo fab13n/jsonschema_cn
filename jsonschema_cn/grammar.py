@@ -95,7 +95,7 @@ array_prefix = ((only / unique) _) *
 array_extra = (plus / star)?
 
 opt_definitions = (def_where _ definitions)?
-definitions = definition (_ def_and _ definition)*
+definitions = _ definition (_ def_and _ definition)* _
 definition = def_identifier _ def_equal _ sequence_or
 def_where = "where"
 def_and = "and"
