@@ -72,12 +72,10 @@ object_empty = lbrace _ object_only _ rbrace opt_cardinal
 object_keyword = kw_object opt_cardinal
 object_non_empty = lbrace _
                    object_only _
-                   object_property (_ comma _ object_property)* _
+                   object_pair (_ comma _ object_pair)* _
                    rbrace
                    opt_cardinal
-    object_only = (only _ (lit_regex/def_reference)? _ comma?)?
-object_property = object_unnamed_pair / object_pair
-object_unnamed_pair = wildcard _ colon _ object_pair_type
+object_only = (only _ ((lit_regex/def_reference/wildcard) _ (colon _ type)?)? comma?)?
 object_pair = object_pair_name _ question? _ colon _ object_pair_type
 object_pair_name = lit_string / object_pair_unquoted_name
 object_pair_unquoted_name = ~"[A-Za-z0-9][-_A-Za-z0-9]*"

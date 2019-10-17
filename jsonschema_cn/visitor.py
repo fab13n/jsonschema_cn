@@ -116,36 +116,21 @@ class TreeBuildingVisitor(NodeVisitor):
     def visit_object_keyword(self, node, c) -> T.Object:
         return T.Object(
             properties=[],
-            additional_properties=True,
-            property_names=None,
+            additional_property_types=None,
+            additional_property_names=None,
             cardinal=c[-1])
 
     def visit_object_empty(self, node, c) -> T.Object:
-        kwargs = dict(
-            properties=[],
-            additional_properties=True,
-            property_names=None)
-        _, (only, only_regex), _, kwargs['cardinal'] = c
-        if not only:
-            kwargs['additional_properties'] = True
-        elif only_regex is not None:
-            kwargs['additional_properties'] = True
-            kwargs['property_names'] = only_regex
-        else:
-            kwargs['additional_properties'] = False
+        kwargs = {'properties': []}
+        _,  additional_props, _, kwargs['cardinal'] = c
+        kwargs.update(additional_props)
         return T.Object(**kwargs)
 
     def visit_object_non_empty(self, node, c) -> T.Object:
-        _, (only, only_regex), first_field, other_fields, _, card = c
-        props = self.gather_separated_list(first_field, other_fields)
-        kwargs = {'properties': props, 'cardinal': card, 'property_names': None}
-        if not only:
-            kwargs['additional_properties'] = True
-        elif only_regex is not None:
-            kwargs['additional_properties'] = True
-            kwargs['property_names'] = only_regex
-        else:
-            kwargs['additional_properties'] = False
+        kwargs = {}
+        _,  additional_props, first_field, other_fields, _, kwargs['cardinal'] = c
+        kwargs['properties'] = self.gather_separated_list(first_field, other_fields)
+        kwargs.update(additional_props)
         return T.Object(**kwargs)
 
     def visit_object_pair(self, node, c) -> T.ObjectProperty:
@@ -155,19 +140,26 @@ class TreeBuildingVisitor(NodeVisitor):
     def visit_object_pair_unquoted_name(self, node, c) -> str:
         return node.text
 
-    def visit_object_unnamed_pair(self, node, c) -> T.ObjectProperty:
-        return T.ObjectProperty(None, True, c[2])
-
-    def visit_object_only(self, node, c) -> Tuple[bool, Optional[str]]:
-        """Parse `only`, `only <pattern>` and `only <pattern>,`."""
-        # TODO also `only <pattern>: <type>`
+    def visit_object_only(self, node, c) -> Tuple[bool, Optional[T.Type], Optional[T.Type]]:
+        """Parse `only`, `only <pattern>`, `only <pattern>: <type>` + optional coma."""
         if len(c) == 0:  # Empty sequence
-            return False, None
-        maybe_regex = c[0][1]
-        if len(maybe_regex):
-            return True, maybe_regex[0][0]
+            return {'additional_property_names': None,
+                    'additional_property_types': None}
+        _, maybe_something, _ = c[0]
+        if len(maybe_something) == 0: # keyword "only" alone
+            return {'additional_property_names': None,
+                    'additional_property_types': False}
+        maybe_name, maybe_type = maybe_something[0]
+        if len(maybe_name) == 0:
+            maybe_name = None
         else:
-            return True, None
+            maybe_name = maybe_name[0]
+        if len(maybe_type):
+            maybe_type = maybe_type[0][1]
+        else:
+            maybe_type = None
+        return {'additional_property_names': maybe_name,
+                'additional_property_types': maybe_type}
 
     def visit_array_empty(self, node, c) -> T.Array:
         return T.Array(items=[], additional_items=True, cardinal=c[-1], unique=False)
@@ -261,8 +253,8 @@ def parse(what: str, source: str, verbose=False) -> T.Type:
     raw_tree = grammar[what].parse(source)
     unspaced_tree = unspace_visitor.visit(raw_tree)
     if verbose:
-        print("Parsing output:", unspaced_tree)
+        print("PEG tree:\n" + unspaced_tree.prettily())
     parsed_tree = jscn_visitor.visit(unspaced_tree)
     if verbose:
-        print("Parsed output:", parsed_tree)
+        print("JSCN tree:\n" + parsed_tree.prettily())
     return parsed_tree

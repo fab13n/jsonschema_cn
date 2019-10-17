@@ -1,6 +1,8 @@
 import unittest
 from . import Schema, Definitions
 import json
+import jsonschema
+
 
 class TestJSCN(unittest.TestCase):
 
@@ -22,6 +24,16 @@ class TestJSCN(unittest.TestCase):
         self.cmp('r"foo\\\"bar"', {"type": "string", "pattern": r'foo\"bar'})
         self.cmp('r"foo\\""', {"type": "string", "pattern": r'foo\"'})
 
+    def test_integer(self):
+        self.cmp('integer{_,1}', {"type": "integer", "maximum": 1})
+        self.cmp('integer{1,_}', {"type": "integer", "minimum": 1})
+        self.cmp('integer{0,10}', {"type": "integer", "minimum": 0, "maximum": 10})
+        self.cmp('integer/5', {"type": "integer", "multipleOf": 5})
+
+    def test_string(self):
+        self.cmp('string{_,1}', {"type": "string", "maxLength": 1})
+        self.cmp('string{1,_}', {"type": "string", "minLength": 1})
+        self.cmp('string{0,10}', {"type": "string", "minLength": 0, "maxLength": 10})
 
     def test_constant(self):
         self.cmp("`123`", {"const": 123})
@@ -60,10 +72,8 @@ class TestJSCN(unittest.TestCase):
                  {"type": "object",
                   "additionalProperties": {"type": "integer"}})
 
-        # TODO combine wildcard + only: what's the meaning?!
-
     def test_object_card(self):
-        pass
+        pass  # TODO
 
     def test_array_empty(self):
         array = {"type": "array"}
@@ -88,10 +98,10 @@ class TestJSCN(unittest.TestCase):
                   "additionalItems": integer})
 
     def test_array_card(self):
-        pass
+        pass  # TODO
 
     def test_where(self):
-        s = '{only <id>, _: <byte>} where id = r"[a-z]+" and byte = integer{0,0xFF}'
+        s = '{only <id>: <byte>} where id = r"[a-z]+" and byte = integer{0,0xFF}'
         self.cmp(s, {
             'additionalProperties': {'$ref': '#/definitions/byte'},
             'definitions': {
@@ -108,7 +118,7 @@ class TestJSCN(unittest.TestCase):
         } | {
             kind: `"mission"`,
             name: string,
-            fleet: {only <id>, _: string}
+            fleet: {only <id>: string}
         } where id = r"[a-z]+" """).to_jsonschema()
 
     def test_yyy(self):
@@ -116,7 +126,7 @@ class TestJSCN(unittest.TestCase):
         { instance: <plid>,
           ground: <plid>,
           mission: <plid>,
-          fleet: { only <plid> _: <aircraft> }
+          fleet: { only <plid>: <aircraft> }
         }
         where plid = r"[A-Z0-9]{4}"
         and aircraft = {
@@ -174,6 +184,34 @@ class TestJSCN(unittest.TestCase):
             set(s.jsonschema['definitions'].keys()),
             {'used_1', 'used_2'}
         )
+
+    def test_combine_schemas(self):
+        self.cmp('{foo?: integer} & {bar?: string}',
+                 {'allOf': [
+                     {'properties': {'foo': {'type': 'integer'}},
+                      'type': 'object'},
+                     {'properties': {'bar': {'type': 'string'}},
+                      'type': 'object'}]})
+
+
+    def test_missing_def(self):
+        with self.assertRaisesRegex(ValueError, "Missing definition"):
+            Schema('{foo: <bar>}').to_jsonschema()
+
+    def test_validate(self):
+        s = Schema("{only x: integer}")
+        s.validate()
+        s.validate({"x": 1})
+        with self.assertRaises(jsonschema.ValidationError):
+            s.validate({"x": "1"})
+        with self.assertRaises(jsonschema.ValidationError):
+            s.validate({"x": 1, "y": 2})
+
+
+    def test_def_conflict(self):
+        with self.assertRaisesRegex(ValueError, "conflict"):
+            Definitions("x = integer") | Definitions("x = string")
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -26,19 +26,14 @@ def main():
     output = open(args.output, 'w') if args.output != "-" else sys.stdout
 
     source = input.read()
-    parsed_tree = parse('schema', source, verbose=args.verbose)
-    if args.verbose:
-        print("Parsed output:", parsed_tree)
-        schema = parsed_tree.to_jsonschema()
-        print("Schema:", schema)
-    else:
-        schema = parsed_tree.to_jsonschema()
+    schema = parse('schema', source, verbose=args.verbose)
     try:
         # TODO Try and guess TTY width
         import jsview
-        result = jsview.dumps(schema)
+        result = jsview.dumps(schema.jsonschema)
     except ModuleNotFoundError:
-        result = json.dumps(schema)
+        # Raw printing if jsview isn't installed
+        result = json.dumps(schema.jsonschema)
 
     output.write(result+"\n")
     output.flush()

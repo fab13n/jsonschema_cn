@@ -28,6 +28,21 @@ class Type(ABC):
         a = [k + "=" + str(getattr(self, k)) for k in self.CONSTRUCTOR_KWARGS]
         return f"{self.__class__.__name__}({', '.join(a)})"
 
+    def prettily(self):
+        """Return a unicode, pretty-printed representation of me."""
+        def indent(text):
+            return '\n'.join(('    ' + line) for line in text.splitlines())
+        if not self.CONSTRUCTOR_KWARGS:
+            return self.__class__.__name__
+        else:
+            acc = []
+            for name in self.CONSTRUCTOR_KWARGS:
+                value = getattr(self, name)
+                # TODO go through lists and tuples
+                r = value.prettily() if isinstance(value, Type) else repr(value)
+                acc.append(f"{name} = {r}")
+            return self.__class__.__name__ + "(\n" + indent("\n".join(acc)) + "\n)"
+
     __repr__ = __str__
 
 
@@ -38,10 +53,10 @@ class Schema(Type):
     def to_jsonschema(self, check_definitions=True, prune_definitions=True):
         r = self.value.to_jsonschema()
         sdv: Dict[str, Type] = self.definitions.values
-        if sdv:
-            r["definitions"] = {k: v.to_jsonschema() for k, v in sdv.items()}
-        if sdv and prune_definitions:
-            self._prune_definitions(r)
+        if self.definitions.values:
+            r['definitions'] = self.definitions.to_jsonschema()
+            if prune_definitions:
+                self._prune_definitions(r)
         if check_definitions:
             self._check_definitions(r)
         r["$schema"] = "http://json-schema.org/draft-07/schema#"
@@ -82,7 +97,10 @@ class Schema(Type):
             if "$ref" in x:
                 return {x["$ref"].rsplit("/", 1)[-1]}
             else:
-                return set.union(*(self._get_references(y) for y in x.values()))
+                r = set()
+                for y in x.values():
+                    r |= self._get_references(y)
+                return r
         elif isinstance(x, list):
             return set.union(*(self._get_references(y) for y in x))
         else:
@@ -107,7 +125,7 @@ class Schema(Type):
             combined_defs = self.definitions | other
             return Schema(value=self.value, definitions=combined_defs)
         else:
-            raise ValueError("Schemas can only be combined with each other")
+            raise ValueError("Schemas can only be combined with each other or with definitions")
 
 
     def __and__(self, other):
@@ -227,18 +245,16 @@ class ObjectProperty(NamedTuple):
 
 class Object(Type):
 
-    CONSTRUCTOR_KWARGS = ("properties", "cardinal", "additional_properties", "property_names")
+    CONSTRUCTOR_KWARGS = ("properties", "cardinal",
+                          "additional_property_types",
+                          "additional_property_names")
 
     def to_jsonschema(self):
-        # TODO: detect inconsistency between "only" and a "_" property wildcard
         card_min, card_max = self.cardinal
         r = {"type": "object"}
         properties = {}
         required = []
         for (k, opt, v) in self.properties:
-            if k is None:
-                r["additionalProperties"] = v.to_jsonschema()
-                continue
             if not opt:
                 required.append(k)
             if v is not None:
@@ -247,12 +263,13 @@ class Object(Type):
             r["required"] = required
         if properties:
             r["properties"] = properties
-        if not self.additional_properties and "additionalProperties" not in r:
-            r["additionalProperties"] = False
 
-        if self.property_names is not None:
-            r['propertyNames'] = self.property_names.to_jsonschema()
-            # TODO it would be neat to accept definitions here
+        if self.additional_property_types is False:
+            r["additionalProperties"] = False
+        elif self.additional_property_types is not None:
+            r["additionalProperties"] = self.additional_property_types.to_jsonschema()
+        if self.additional_property_names is not None:
+            r['propertyNames'] = self.additional_property_names.to_jsonschema()
 
         implicit_card_min = len(required)
         implicit_card_max = (
