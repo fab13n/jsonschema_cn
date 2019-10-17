@@ -5,7 +5,7 @@ from .unspace import UnspaceVisitor
 from typing import Any
 
 
-__version__ = "0.7"
+__version__ = "0.8"
 
 
 def Schema(source: str, verbose=False) -> tree.Schema:
