@@ -116,14 +116,9 @@ class Schema(Type):
     def __or__(self, other):
         return self._combine(other, 'anyOf')
 
-    # Conflicts with constructor argument of the same name
-    # @property
-    # def definitions(self):
-    #     self.jsonschema.get('definitions', {})
-
     def validate(self, data=None):
-        if data is None:  # Validate the schema's syntax only
-            pass
+        if data is None:  # Validate the schema itself
+            jsonschema.Draft7Validator.check_schema(self.jsonschema)
         else:  # Validate a piece of data against the schema
             jsonschema.validate(
                 data,

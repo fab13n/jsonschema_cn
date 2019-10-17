@@ -2,8 +2,7 @@ import sys
 import json
 from argparse import ArgumentParser
 
-from .grammar import grammar
-from .visitor import JSCNVisitor
+from .visitor import parse
 
 
 def main():
@@ -27,18 +26,13 @@ def main():
     output = open(args.output, 'w') if args.output != "-" else sys.stdout
 
     source = input.read()
-    raw_tree = grammar.parse(source)
-    visitor = JSCNVisitor()
-    if args.verbose:
-        print("Raw output:", raw_tree)
-    parsed_tree = visitor.visit(raw_tree)
+    parsed_tree = parse('schema', source, verbose=args.verbose)
     if args.verbose:
         print("Parsed output:", parsed_tree)
         schema = parsed_tree.to_jsonschema()
         print("Schema:", schema)
     else:
         schema = parsed_tree.to_jsonschema()
-
     try:
         # TODO Try and guess TTY width
         import jsview

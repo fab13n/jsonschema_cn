@@ -191,6 +191,7 @@ Some things that may be added in future versions:
       to non-regexes, ideally to convert them into regular properties.
     * tolerate `{only <foo>: <bar>}` as a shortcute for `{only <foo>
       _: <bar>}`.
+    * make keyword case-insensitive?
 * better error messages, on incorrect grammars, and on non-validating
   JSON data.
 * reciprocal feature: try and translate a JSON-schema into a shorter

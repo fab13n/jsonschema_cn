@@ -1,26 +1,17 @@
 from .grammar import grammar
-from .visitor import JSCNVisitor
+from .visitor import parse
 from .tree import Type
+from .unspace import UnspaceVisitor
 from typing import Any
 
 
 __version__ = "0.6"
 
 
-def _parse(what: str, source: str, verbose=False) -> Any:
-    raw_tree = grammar[what].parse(source)
-    if verbose:
-        print("Raw output:", raw_tree)
-    visitor = JSCNVisitor()
-    parsed_tree = visitor.visit(raw_tree)
-    if verbose:
-        print("Parsed output:", parsed_tree)
-    return parsed_tree
-
 
 def Schema(source: str, verbose=False) -> tree.Schema:
-    return _parse('schema', source)
+    return parse('schema', source)
 
 
 def Definitions(source: str, verbose=False) -> tree.Definitions:
-    return _parse('definitions', source)
+    return parse('definitions', source)

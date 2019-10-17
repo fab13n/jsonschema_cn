@@ -4,14 +4,14 @@ from typing import Tuple, Optional, Set, Dict
 import json
 
 from . import tree as T
+from .grammar import grammar
+from .unspace import UnspaceVisitor
 
 
-class JSCNVisitor(NodeVisitor):
-
-    WHITESPACE_TOKEN = object()
+class TreeBuildingVisitor(NodeVisitor):
 
     SHELL_EXPRESSIONS = {
-        "type": 0,
+        "simple_type": 0,
         "card_content": 0,
         "card_1": (0, 0),
         "card_2": (0, -1),
@@ -23,38 +23,24 @@ class JSCNVisitor(NodeVisitor):
         "parens": 1,
     }
 
-    @classmethod
-    def unspace(cls, sequence, index=None):
-        """Remove space tokens from a sequence of visited children.
-        if extra integer indexes are passed as args, only keep those."""
-        unspaced = tuple(x for x in sequence if x is not cls.WHITESPACE_TOKEN)
-        if index is not None:
-            return unspaced[index]
-        else:
-            return unspaced
-
     @staticmethod
     def gather_separated_list(first_item, other_items_with_separators) -> tuple:
         return (first_item, ) + tuple(item[1] for item in other_items_with_separators)
 
-    def visit__(self, node, c) -> object:
-        """Replace whitspaces with an easy-to-filter sentinel value."""
-        return self.WHITESPACE_TOKEN
-
     def visit_schema(self, node, c) -> T.Schema:
-        value, definitions = self.unspace(c)
+        value, definitions = c
         return T.Schema(value=value, definitions=definitions)
 
     def visit_sequence_and(self, node, c) -> T.Type:
-        first, rest = self.unspace(c)
+        first, rest = c
         if len(rest):
-            values = (first, *(item[1] for item in rest))
+            values = self.gather_separated_list(first, rest)
             return T.Operator(operator="allOf", values=values)
         else:
             return first
 
-    def visit_sequence_or(self, node, c) -> T.Type:
-        first, rest = self.unspace(c)
+    def visit_type(self, node, c) -> T.Type:
+        first, rest = c
         if len(rest) == 0:
             return first
         operands = self.gather_separated_list(first, rest)
@@ -66,14 +52,13 @@ class JSCNVisitor(NodeVisitor):
             return T.Operator(operator="oneOf", values=operands)
 
     def visit_not_type(self, node, c) -> T.Not:
-        return T.Not(value=self.unspace(c, 1))
+        return T.Not(value=c[1])
 
     def visit_string(self, node, c) -> T.String:
-        _, cardinal = self.unspace(c)
-        return T.String(cardinal=cardinal, format=None, regex=None)
+        return T.String(cardinal=c[1], format=None, regex=None)
 
     def visit_integer(self, node, c) -> T.Integer:
-        _, cardinal, multiple = self.unspace(c)
+        _, cardinal, multiple = c
         return T.Integer(cardinal=cardinal, multiple=multiple)
 
     def visit_litteral(self, node, c) -> T.Litteral:
@@ -87,30 +72,31 @@ class JSCNVisitor(NodeVisitor):
         return unescaped
 
     def visit_lit_regex(self, node, c) -> T.String:
+        # This rule is space-free
         return T.String(format=None, cardinal=(None, None), regex=node.children[-1].text[1:-1])
 
     def visit_lit_format(self, node, c) -> T.String:
+        # This rule is space-free
         return T.String(cardinal=(None, None), regex=None, format=node.children[-1].text[1:-1])
 
     def visit_opt_multiple(self, node, c) -> Optional[int]:
-        uc = self.unspace(c)
-        return None if len(uc) == 0 else uc[0][1]
+        return None if len(c) == 0 else c[0][1]
 
     def visit_opt_cardinal(self, node, c) -> Tuple[Optional[int], Optional[int]]:
         # generic_visit didn't detect card_1, probably due to some node optimization?
         if len(c) == 0:  # Empty cardinal
             return (None, None)
-        uc = self.unspace(c[0], 1)
+        uc = c[0][1]
         if isinstance(uc, int):
             return (uc, uc)
         else: # Pair of ints/nulls
             return uc
 
     def visit_card_min(self, node, c) -> Tuple[int, None]:
-        return (self.unspace(c, 0), None)
+        return (c[0], None)
 
     def visit_card_max(self, node, c) -> Tuple[None, int]:
-        return (None, self.unspace(c, 2))
+        return (None, c[2])
 
     def visit_lit_integer(self, node, c) -> int:
         # This rule is space-free
@@ -139,7 +125,7 @@ class JSCNVisitor(NodeVisitor):
             properties=[],
             additional_properties=True,
             property_names=None)
-        _, (only, only_regex), _, kwargs['cardinal'] = self.unspace(c)
+        _, (only, only_regex), _, kwargs['cardinal'] = c
         if not only:
             kwargs['additional_properties'] = True
         elif only_regex is not None:
@@ -150,7 +136,7 @@ class JSCNVisitor(NodeVisitor):
         return T.Object(**kwargs)
 
     def visit_object_non_empty(self, node, c) -> T.Object:
-        _, (only, only_regex), first_field, other_fields, _, card = self.unspace(c)
+        _, (only, only_regex), first_field, other_fields, _, card = c
         props = self.gather_separated_list(first_field, other_fields)
         kwargs = {'properties': props, 'cardinal': card, 'property_names': None}
         if not only:
@@ -163,29 +149,28 @@ class JSCNVisitor(NodeVisitor):
         return T.Object(**kwargs)
 
     def visit_object_pair(self, node, c) -> T.ObjectProperty:
-        key, question, _, val = self.unspace(c)
+        key, question, _, val = c
         return T.ObjectProperty(key, bool(question), val)
 
     def visit_object_pair_unquoted_name(self, node, c) -> str:
         return node.text
 
     def visit_object_unnamed_pair(self, node, c) -> T.ObjectProperty:
-        return T.ObjectProperty(None, True, self.unspace(c, 2))
+        return T.ObjectProperty(None, True, c[2])
 
     def visit_object_only(self, node, c) -> Tuple[bool, Optional[str]]:
         """Parse `only`, `only <pattern>` and `only <pattern>,`."""
         # TODO also `only <pattern>: <type>`
         if len(c) == 0:  # Empty sequence
             return False, None
-        maybe_regex = self.unspace(c[0], 1)
+        maybe_regex = c[0][1]
         if len(maybe_regex):
             return True, maybe_regex[0][0]
         else:
             return True, None
 
     def visit_array_empty(self, node, c) -> T.Array:
-        card = self.unspace(c, -1)
-        return T.Array(items=[], additional_items=True, cardinal=card, unique=False)
+        return T.Array(items=[], additional_items=True, cardinal=c[-1], unique=False)
 
     def visit_array_non_empty(self, node, c) -> T.Array:
         """
@@ -195,7 +180,7 @@ class JSCNVisitor(NodeVisitor):
         with extra items type. Here too, any "only" qualifier will be ignored.
         Without a suffix, it's a tuple type, the "only" qualifier is enforced.
         """
-        _, array_prefix, first_item, other_items, extra, _, card = self.unspace(c)
+        _, array_prefix, first_item, other_items, extra, _, card = c
 
         items = self.gather_separated_list(first_item, other_items)
 
@@ -236,17 +221,17 @@ class JSCNVisitor(NodeVisitor):
         if len(c) == 0:  # Empty definition
             return T.Definitions(values={})
         else:
-            _, defs = self.unspace(c[0])
+            _, defs = c[0]
             return defs
 
     def visit_definitions(self, node, c) -> T.Definitions:
-        first_def, other_defs_with_and = self.unspace(c)
+        first_def, other_defs_with_and = c
         other_defs = [d[1] for d in other_defs_with_and]
         items = (first_def, *other_defs)
         return T.Definitions(values=dict(items))
 
     def visit_definition(self, node, c) -> Tuple[str, T.Type]:
-        id, _, type = self.unspace(c)
+        id, _, type = c
         return (id, type)
 
     def visit_def_identifier(self, node, c) -> str:
@@ -258,13 +243,26 @@ class JSCNVisitor(NodeVisitor):
     def generic_visit(self, node, c) -> tuple:
         """ The generic visit method. """
         n = self.SHELL_EXPRESSIONS.get(node.expr_name)
-        unspaced_c = self.unspace(c)
         if n is None:
-            return unspaced_c
+            return c
         elif isinstance(n, Sequence):
-            return tuple(unspaced_c[i] for i in n)
+            return tuple(c[i] for i in n)
         elif isinstance(n, int):
-            return unspaced_c[n]
+            return c[n]
         else:
             raise ValueError(f"bad SHELL_EXPRESSIONS for {node.expr_name}")
 
+
+jscn_visitor = TreeBuildingVisitor()
+unspace_visitor = UnspaceVisitor()
+
+
+def parse(what: str, source: str, verbose=False) -> T.Type:
+    raw_tree = grammar[what].parse(source)
+    unspaced_tree = unspace_visitor.visit(raw_tree)
+    if verbose:
+        print("Parsing output:", unspaced_tree)
+    parsed_tree = jscn_visitor.visit(unspaced_tree)
+    if verbose:
+        print("Parsed output:", parsed_tree)
+    return parsed_tree

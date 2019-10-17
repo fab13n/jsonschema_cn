@@ -1,14 +1,13 @@
 """PEG Grammar for JSON-Schema compact notation."""
 from parsimonious import Grammar
 
-grammar = Grammar(
-    r"""
-schema = _ sequence_or _ opt_definitions _
-type = litteral / string / object / integer / array /
+grammar = Grammar(r"""
+schema = _ type _ opt_definitions _
+type = sequence_and (_ or _ sequence_and)*
+sequence_and = simple_type (_ and _ simple_type)*
+simple_type = litteral / string / object / integer / array /
        lit_regex / lit_format / constant / parens / not_type / def_reference
-parens = lparen _ sequence_or _ rparen
-sequence_or = sequence_and (_ or _ sequence_and)*
-sequence_and = type (_ and _ type)*
+parens = lparen _ type _ rparen
 
 litteral = "boolean" / "null" / "number"
 
@@ -37,7 +36,7 @@ string = "string" _ opt_cardinal
 integer = "integer" _ opt_cardinal _ opt_multiple
 opt_multiple = ("/" _ lit_integer)?
 
-not_type = not _ type
+not_type = not _ simple_type
 
 regex_prefix = "r"
 format_prefix = "f"
@@ -96,7 +95,7 @@ array_extra = (plus / star)?
 
 opt_definitions = (def_where _ definitions)?
 definitions = _ definition (_ def_and _ definition)* _
-definition = def_identifier _ def_equal _ sequence_or
+definition = def_identifier _ def_equal _ type
 def_where = "where"
 def_and = "and"
 def_equal = "="
