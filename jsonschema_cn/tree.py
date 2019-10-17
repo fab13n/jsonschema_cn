@@ -45,6 +45,13 @@ class Type(ABC):
 
     __repr__ = __str__
 
+    def __eq__(self, other):
+        if self.__class__ != other.__class__:
+            return False
+        for name in self.CONSTRUCTOR_KWARGS:
+            if getattr(self, name) != getattr(other, name):
+                return False
+        return True
 
 class Schema(Type):
 
@@ -159,9 +166,9 @@ class Definitions(Type):
             if isinstance(other, dict):
                 other = Definitions.from_dict(other)
             overlap = set(self.values.keys()) & set(other.values.keys())
-            if overlap:
-                conflicts = ", ".join(sorted(overlap))
-                raise ValueError(f"Cannot merge definitions, conflict over {conflicts}")
+            conflicts = sorted(name for name in overlap if self.values[name] != other.values[name])
+            if conflicts:
+                raise ValueError(f"Cannot merge definitions, conflict over {', '.join(conflicts)}")
             defs = dict(self.values)
             defs.update(other.values)
             return Definitions(values=defs)
