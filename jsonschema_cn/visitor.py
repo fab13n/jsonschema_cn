@@ -135,6 +135,8 @@ class TreeBuildingVisitor(NodeVisitor):
 
     def visit_object_pair(self, node, c) -> T.ObjectProperty:
         key, question, _, val = c
+        if not isinstance(val, T.Type):  # wildcard
+            val = None
         return T.ObjectProperty(key, bool(question), val)
 
     def visit_object_pair_unquoted_name(self, node, c) -> str:

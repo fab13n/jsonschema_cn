@@ -119,9 +119,11 @@ class Schema(Type):
             combined_content = Operator(operator=op, values=args)
             combined_defs = self.definitions | other.definitions
             return Schema(value=combined_content, definitions=combined_defs)
-        elif op == 'anyOf' and isinstance(other, Definitions):
+        elif op == 'anyOf' and (isinstance(other, Definitions) or isinstance(other, dict)):
             # Schema + additional definitions
             # TODO Maybe '+' is a more appropriate operator than '|'?
+            if isinstance(other, dict):
+                other = Definitions.from_dict(other)
             combined_defs = self.definitions | other
             return Schema(value=self.value, definitions=combined_defs)
         else:
@@ -153,7 +155,9 @@ class Definitions(Type):
         return {k: v.to_jsonschema() for k, v in self.values.items()}
 
     def __or__(self, other):
-        if isinstance(other, Definitions):
+        if isinstance(other, Definitions) or isinstance(other, dict):
+            if isinstance(other, dict):
+                other = Definitions.from_dict(other)
             overlap = set(self.values.keys()) & set(other.values.keys())
             if overlap:
                 conflicts = ", ".join(sorted(overlap))
@@ -165,6 +169,17 @@ class Definitions(Type):
             return other | self
         else:
             raise ValueError("Cannot perform 'or' on Definitions and that")
+
+    @staticmethod
+    def from_dict(d):
+        definitions = Definitions(values={})
+        for name, schema in d.items():
+            if isinstance(schema, str):
+                from .visitor import parse
+                schema = parse('schema', schema)
+            definitions |= schema.definitions
+            definitions |= Definitions(values={name: schema.value})
+        return definitions
 
 
 class Integer(Type):
