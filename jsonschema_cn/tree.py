@@ -53,6 +53,7 @@ class Type(ABC):
                 return False
         return True
 
+
 class Schema(Type):
 
     CONSTRUCTOR_KWARGS = ("value", "definitions")
@@ -71,7 +72,7 @@ class Schema(Type):
 
     def _check_definitions(self, schema):
         """Verify that all references have their definition."""
-        occurring_references = self._get_references(schema)
+        occurring_references = self._get_dict_references(schema)
         for k in occurring_references:
             if k not in self.definitions.values.keys():
                 raise ValueError(f"Missing definition for {k}")
@@ -79,7 +80,7 @@ class Schema(Type):
     def _prune_definitions(self, schema):
         """Remove unused definitions. May iterate more than once, because
         some references may be used in other definitions."""
-        occurring_references = self._get_references(schema)
+        occurring_references = self._get_dict_references(schema)
         eliminated_references = False
         while True:
             for k in list(schema['definitions'].keys()):
@@ -91,25 +92,27 @@ class Schema(Type):
                 # Some unused references have been removed.
                 # By removing their definitions, maybe some other
                 # references became unused => try to prune again.
-                occurring_references = self._get_references(schema)
+                occurring_references = self._get_dict_references(schema)
                 eliminated_references = False
             else:
                 # Reached a fix-point, nothing left to eliminate
                 return
 
-    def _get_references(self, x) -> Set[str]:
+    def _get_dict_references(self, x) -> Set[str]:
         """Extract every definition usage from a compiled jsonschema,
         so that it can be checked that they are all defined."""
         if isinstance(x, dict):
             if "$ref" in x:
-                return {x["$ref"].rsplit("/", 1)[-1]}
+                # Don't return immediately, there may be definitions in a "$ref".
+                r = {x["$ref"].rsplit("/", 1)[-1]}
             else:
                 r = set()
-                for y in x.values():
-                    r |= self._get_references(y)
-                return r
+            for k, v in x.items():
+                if k != "$ref":
+                    r |= self._get_dict_references(v)
+            return r
         elif isinstance(x, list):
-            return set.union(*(self._get_references(y) for y in x))
+            return set.union(*(self._get_dict_references(y) for y in x))
         else:
             return set()
 

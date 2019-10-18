@@ -2,12 +2,15 @@ import unittest
 from . import Schema, Definitions
 import json
 import jsonschema
-
+from . import tree as T
 
 class TestJSCN(unittest.TestCase):
 
-    def cmp(self, src: str,sch: dict) -> None:
-        sch2 = Schema(src).to_jsonschema()
+    def cmp(self, src, sch: dict) -> None:
+        if isinstance(src, str):
+            sch2 = Schema(src).jsonschema
+        elif isinstance(src, T.Schema):
+            sch2 = src.jsonschema
         del sch2['$schema']
         self.assertDictEqual(sch2, sch)
 
@@ -111,7 +114,7 @@ class TestJSCN(unittest.TestCase):
             'type': 'object'
         })
 
-    def test_xxx(self):
+    def test_x0(self):
         Schema(r"""{
             kind: `"aircraft"`,
             mission: string
@@ -121,7 +124,7 @@ class TestJSCN(unittest.TestCase):
             fleet: {only <id>: string}
         } where id = r"[a-z]+" """).to_jsonschema()
 
-    def test_yyy(self):
+    def test_x1(self):
         Schema("""
         { instance: <plid>,
           ground: <plid>,
@@ -131,7 +134,7 @@ class TestJSCN(unittest.TestCase):
         where plid = r"[A-Z0-9]{4}"
         and aircraft = {
           color?: string,
-          status?: string  # TODO bug in JSCN `"online"` | `"offline"`
+          status?: `"online"` | `"offline"`
         }
         """).to_jsonschema()
 
@@ -211,6 +214,24 @@ class TestJSCN(unittest.TestCase):
     def test_def_conflict(self):
         with self.assertRaisesRegex(ValueError, "conflict"):
             Definitions("x = integer") | Definitions("x = string")
+
+
+    def test_toplevel_ref(self):
+        self.cmp('<x> where x=integer',
+                 {"$ref": "#/definitions/x",
+                  "definitions": {"x": {"type": "integer"}}})
+        s = Schema("<x>")
+        d = Definitions("x=integer")
+        self.cmp(s|d,
+                 {"$ref": "#/definitions/x",
+                  "definitions": {"x": {"type": "integer"}}})
+
+    def test_indirect_ref(self):
+        self.cmp('<A> where A = <B> and B = `"C"`',
+                 {"$ref": "#/definitions/A",
+                  "definitions": {
+                      "A": {"$ref": "#/definitions/B"},
+                      "B": {"const": "C"}}})
 
 
 if __name__ == '__main__':
