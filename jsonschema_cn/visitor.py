@@ -259,4 +259,5 @@ def parse(what: str, source: str, verbose=False) -> T.Type:
     parsed_tree = jscn_visitor.visit(unspaced_tree)
     if verbose:
         print("JSCN tree:\n" + parsed_tree.prettily())
+    parsed_tree.source = source
     return parsed_tree
