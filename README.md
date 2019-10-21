@@ -58,18 +58,24 @@ Objects are described between curly braces:
   integer, and possibly other fields.
 * Quotes are optional around property names, if they are identifiers other
   than `"_"` or `"only"`: it's legal to write `{bar: integer}`.
-* The wildcard property name `_` gives a type constraint on every
-  extra property, e.g.  `{"bar": integer, _: string}` is an object
-  with a field `"bar"` of type integer, and optionally other
-  properties with any names, but all containing strings.
-* To prevent other fields from being accepted, use a prefix `only`, as in
-  `{only "bar": integer}`.
+* To prevent non-listed property names from being accepted, use a
+  prefix `only`, as in `{only "bar": integer}`.
+* non-listed property names can be forced to follow a regex with an
+  `only r"regex"` prefix, which can also be a reference to a
+  definition: `{only r"[a-z]+"}`, `{only <word>, "except_this_one":
+  integer} where word=r"[a-z]"+`.
+* In addition to forcing non-listted property names, one can also
+  force a type constraint on the associated values: `{only <word>:
+  integer}`. If no naming constraint is desired, the name can be
+  replace by an underscore wildcard: `{only _: integer}`.
 * To restrict additional property names without completely
   forbidding them, a prefix constraint `only <regex>` can be added,
   e.g. `{only r"[0-9]+" _: integer}` will only accept
   integer-to-integer maps. References to definitions are also
   accepted, as in `{only <int_string>} where int_string = r"[0-9]+"`.
-
+* A special type `forbidden`, equivalent to JSONSchema's `false`, can
+  be used to specifically forbid a property name:
+  `{reserved_name: forbidden}`.
 
 Types can be combined:
 
@@ -109,6 +115,7 @@ More formally
            | «boolean»              # any boolean.
            | «null»                 # the null value.
            | «number»               # any number.
+           | «forbidden»            # empty type (used mostly to disallow a property name).
            | object                 # structurally described object.
            | array                  # structurally described array.
 
@@ -118,14 +125,21 @@ More formally
                | «{» int, int «}»   # A number of chars / items / properties within this range.
 
 
-    object ::= «{» («only» regex?)? (object_key «?»? «:» type «,»...)* «}» cardinal?
+    object ::= «{» object_restriction? (object_key «?»? «:» type «,»...)* «}» cardinal?
              # if «only» occurs without a regex, no extra property is allowed.
              # if «only» occurs with a regex, all extra property names must match that regex.
              # if «?» occurs, the preceding property is optional, otherwise it's required.
 
+    object_restriction ::= ø
+                         # Only explicitly listed property names are accepted:
+                         | «only»
+                         # non-listed property names must conform to regex/reference:
+                         | «only» (r"regex" | «<»identifier«>»)
+                         # non-listed property names must conform to regex, values to type:
+                         | «only» (r"regex" | «<»identifier«>» | «_»)«:» type
+
     object_key ::= identifier    # Litteral property name.
                  | «"»string«"»  # Properties which aren't identifiers must be quoted.
-                 | «_»           # Properties not explicitly listed must match the following type.
 
     array ::= «[» «only»? «unique»? (type «,»)* («*»|«+»|ø) «]» cardinal?
             # if «only» occurs, no extra item is allowed.
@@ -169,9 +183,6 @@ Some things that may be added in future versions:
   `or_sequence` and `'\n'`-join them on top?
 * Implementation:
     * bubble up `?` markers in grammar to the top level.
-    * make lazy `jsonschema` property available everywhere.
-    * tolerate overlapping definitions as long as overlapping defs
-      are equal (relay on lazy `jsonschema` prop + Python dict equality).
 * Syntax sugar:
     * optional marker: `foobar?` is equivalent to `foobar|null`.  Not
       sure whether it's worth it, the difference between a missing
@@ -182,15 +193,9 @@ Some things that may be added in future versions:
     * tolerate literal strings as constants, i.e. `"foo"` is
       interpreted as `` `"foo"` ``. Would make the point above
       irrelevant.
-    * tolerate chevrons around definitions, i.e `{_: <foo>} where
-      <foo> = ...` in addition to `{_: <foo>} where foo = ...`?
-    * tolerate literal regexes and references to regexes as object
-      keys. references raise issues, as we don't know locally whether
-      the reference points to a string, a regex or something else. The
-      resulting schema must be checked, at least to refuse references
-      to non-regexes, ideally to convert them into regular properties.
-    * tolerate `{only <foo>: <bar>}` as a shortcute for `{only <foo>
-      _: <bar>}`.
+    * tolerate chevrons around definitions, i.e `... where <foo> =
+      ...` in addition to `... where foo = ...`?
+    * check that references as `propertyNames` indeed point at string types.
     * make keyword case-insensitive?
 * better error messages, on incorrect grammars, and on non-validating
   JSON data.
