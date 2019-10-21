@@ -5,7 +5,7 @@ grammar = Grammar(r"""
 schema = _ type _ opt_definitions _
 type = sequence_and (_ or _ sequence_and)*
 sequence_and = simple_type (_ and _ simple_type)*
-simple_type = litteral / string / object / integer / array /
+simple_type = litteral / forbidden / string / object / integer / array /
        lit_regex / lit_format / constant / parens / not_type / def_reference
 parens = lparen _ type _ rparen
 
@@ -59,6 +59,7 @@ kw_array = "array"
 kw_object = "object"
 only = "only"
 unique = "unique"
+forbidden = "forbidden"
 
 opt_cardinal = (lbrace _ card_content _ rbrace)?
 card_content = card_2 / card_min / card_max / card_1

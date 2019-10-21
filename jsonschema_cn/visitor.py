@@ -65,6 +65,9 @@ class TreeBuildingVisitor(NodeVisitor):
         # This rule is space-free
         return T.Litteral(value=node.children[0].text)
 
+    def visit_forbidden(self, node, c) -> T.Forbidden:
+        return T.Forbidden()
+
     def visit_lit_string(self, node, c) -> str:
         # This rule is space-free
         source = node.text[1:-1]

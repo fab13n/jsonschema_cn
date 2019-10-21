@@ -60,14 +60,14 @@ class Schema(Type):
 
     def to_jsonschema(self, check_definitions=True, prune_definitions=True):
         r = self.value.to_jsonschema()
-        sdv: Dict[str, Type] = self.definitions.values
-        if self.definitions.values:
-            r['definitions'] = self.definitions.to_jsonschema()
-            if prune_definitions:
-                self._prune_definitions(r)
-        if check_definitions:
-            self._check_definitions(r)
-        r["$schema"] = "http://json-schema.org/draft-07/schema#"
+        if isinstance(r, dict):  # Could also be `False`
+            if self.definitions.values:
+                r['definitions'] = self.definitions.to_jsonschema()
+                if prune_definitions:
+                    self._prune_definitions(r)
+            if check_definitions:
+                self._check_definitions(r)
+            r["$schema"] = "http://json-schema.org/draft-07/schema#"
         return r
 
     def _check_definitions(self, schema):
@@ -224,6 +224,12 @@ class String(Type):
         if self.regex is not None:
             r["pattern"] = self.regex
         return r
+
+
+class Forbidden(Type):
+    CONSTRUCTOR_KWARGS = ()
+    def to_jsonschema(self):
+        return False
 
 
 class Litteral(Type):
