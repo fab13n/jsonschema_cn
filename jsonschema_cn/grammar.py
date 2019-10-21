@@ -1,7 +1,8 @@
 """PEG Grammar for JSON-Schema compact notation."""
+import re
 from parsimonious import Grammar
 
-grammar = Grammar(r"""
+src = r"""
 schema = _ type _ opt_definitions _
 type = sequence_and (_ or _ sequence_and)*
 sequence_and = simple_type (_ and _ simple_type)*
@@ -9,7 +10,7 @@ simple_type = litteral / forbidden / string / object / integer / array /
        lit_regex / lit_format / constant / parens / not_type / def_reference
 parens = lparen _ type _ rparen
 
-litteral = "boolean" / "null" / "number"
+litteral = KEYWORD("boolean") / KEYWORD("null") / KEYWORD("number")
 
 lit_integer =  ~"0x[0-9a-fA-F]+" / ~"[0-9]+"
 lit_string = ~"\"([^\"\\\\]|\\\\.)*\""
@@ -32,14 +33,14 @@ constant = ~"`[^`]+`"
 # backquote = "`"
 # neither_quote_nor_backquote = escaped_character / r"[^\"`]"
 
-string = "string" _ opt_cardinal
-integer = "integer" _ opt_cardinal _ opt_multiple
+string = KEYWORD("string") _ opt_cardinal
+integer = KEYWORD("integer") _ opt_cardinal _ opt_multiple
 opt_multiple = ("/" _ lit_integer)?
 
 not_type = not _ simple_type
 
-regex_prefix = "r"
-format_prefix = "f"
+regex_prefix = KEYWORD("r")
+format_prefix = KEYWORD("f")
 wildcard = "_"
 or = "|"
 and = "&"
@@ -55,11 +56,12 @@ colon = ":"
 question = "?"
 star = "*"
 plus = "+"
-kw_array = "array"
-kw_object = "object"
-only = "only"
-unique = "unique"
-forbidden = "forbidden"
+
+kw_array = KEYWORD("array")
+kw_object = KEYWORD("object")
+only = KEYWORD("only")
+unique = KEYWORD("unique")
+forbidden = KEYWORD("forbidden")
 
 opt_cardinal = (lbrace _ card_content _ rbrace)?
 card_content = card_2 / card_min / card_max / card_1
@@ -95,8 +97,8 @@ array_extra = (plus / star)?
 opt_definitions = (def_where _ definitions)?
 definitions = _ definition (_ def_and _ definition)* _
 definition = def_identifier _ def_equal _ type
-def_where = "where"
-def_and = "and"
+def_where = KEYWORD("where")
+def_and = KEYWORD("and")
 def_equal = "="
 def_reference = "<" def_identifier ">"
 def_identifier = ~"[A-Za-z_][-A-Za-z_0-9]*"
@@ -105,4 +107,13 @@ _ = meaninglessness*
 meaninglessness = ~r"\s+" / comment
 comment = ~r"#[^\r\n]*"
 """
-)
+
+def parse_keywords(src):
+    """Replace occurences of KEYWORD("...") by a regex allowing all capitalizations
+    of the keyword between quotes."""
+    def f(m):
+        return '~"' + "".join(f"[{x}{x.upper()}]" for x in m[1]) + '"'
+    r = re.compile(r'KEYWORD\("([a-z]+)"\)')
+    return r.sub(f, src)
+
+grammar = Grammar(parse_keywords(src))

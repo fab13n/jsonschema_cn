@@ -63,7 +63,7 @@ class TreeBuildingVisitor(NodeVisitor):
 
     def visit_litteral(self, node, c) -> T.Litteral:
         # This rule is space-free
-        return T.Litteral(value=node.children[0].text)
+        return T.Litteral(value=node.children[0].text.lower())
 
     def visit_forbidden(self, node, c) -> T.Forbidden:
         return T.Forbidden()
@@ -203,7 +203,7 @@ class TreeBuildingVisitor(NodeVisitor):
         """Return a set of strings among "unique" and "only"."""
         r = set()
         for word in ("unique", "only"):
-            if word in node.text:
+            if word in node.text.lower():
                 r.add(word)
         return r
 
