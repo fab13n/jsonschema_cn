@@ -12,25 +12,19 @@ parens = lparen _ type _ rparen
 litteral = "boolean" / "null" / "number"
 
 lit_integer =  ~"0x[0-9a-fA-F]+" / ~"[0-9]+"
-lit_string = ~"\"([^\"\\\\]|\\\\.)*\""
 lit_regex = regex_prefix lit_string
 lit_format = format_prefix lit_string
 
-constant = ~"`[^`]+`"
+lit_string = quote_char (non_quote_char*) quote_char
 
-# Clearer definition of quoted strings
-# lit_string = quote non_quote* quote
-# quote = "\""
-# non_quote = escaped_character / r"[^\"]"
-# escaped_character = r"\\\\."
+quote_char = "\""
+backslash_char = "\\"
+non_quote_char = escaped_char / ~"[^\"]"
+escaped_char = backslash_char ~"."
 
-# Allow quoted strings in JSON constants:
-# # 1. the barbaric way
-# constant = ~"[^\"]*(\"([^\"\\\\]|\\\\.)*\"[^\"]*)*"
-# # 2. the PEGgy way
-# constant = backquote (neither_quote_nor_backquote / lit_string)* backquote
-# backquote = "`"
-# neither_quote_nor_backquote = escaped_character / r"[^\"`]"
+constant = backquote_char (neither_quote_nor_backquote / lit_string)* backquote_char
+backquote_char = "`"
+neither_quote_nor_backquote = escaped_char / (~"[^\"`]")
 
 string = "string" _ opt_cardinal
 integer = "integer" _ opt_cardinal _ opt_multiple
