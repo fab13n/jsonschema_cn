@@ -109,7 +109,10 @@ class TreeBuildingVisitor(NodeVisitor):
 
     def visit_constant(self, node, c) -> T.Constant:
         # This rule is space-free
-        source = node.text[1:-1]
+        source = node.text
+        if source[0] == '`':
+            assert source[-1] == '`'
+            source = source[1:-1]
         try:
             value = json.loads(source)
             return T.Constant(value=value)
