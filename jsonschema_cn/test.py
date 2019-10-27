@@ -53,6 +53,13 @@ class TestJSCN(unittest.TestCase):
     def test_enum(self):
         self.cmp("`1`|`2`|`3`", {"enum": [1, 2, 3]})
 
+    def test_forbidden(self):
+        self.assertEqual(Schema("forbidden").jsonschema, False)
+        self.assertDictEqual(Schema("{x: forbidden}").jsonschema,
+                             Schema("{x?: forbidden}").jsonschema)
+        self.assertNotEqual(Schema("{x: `1`}").jsonschema,
+                            Schema("{x?: `1`}").jsonschema)
+
     def test_object_empty(self):
         obj = {"type": "object"}
         self.cmp("{}", obj)

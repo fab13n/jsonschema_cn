@@ -193,13 +193,6 @@ Some things that may be added in future versions:
       sure whether it's worth it, the difference between a missing
       field and a field holding `null` is most commonly not
       significant.
-    * tolerate `"foo"|"bar"` instead of `"foo"` | `"bar"`: bars don't
-      appear in JSON constants out of quoted strings.
-    * tolerate literal strings as constants, i.e. `"foo"` is
-      interpreted as `` `"foo"` ``. Would make the point above
-      irrelevant.
-    * tolerate chevrons around definitions, i.e `... where <foo> =
-      ...` in addition to `... where foo = ...`?
     * check that references as `propertyNames` indeed point at string
       types.
     * make keyword case-insensitive?

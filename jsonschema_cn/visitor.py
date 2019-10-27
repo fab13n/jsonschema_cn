@@ -140,7 +140,8 @@ class TreeBuildingVisitor(NodeVisitor):
         key, question, _, val = c
         if not isinstance(val, T.Type):  # wildcard
             val = None
-        return T.ObjectProperty(key, bool(question), val)
+        is_optional = bool(question) | isinstance(val, T.Forbidden)
+        return T.ObjectProperty(key, is_optional, val)
 
     def visit_object_pair_unquoted_name(self, node, c) -> str:
         return node.text
@@ -228,7 +229,7 @@ class TreeBuildingVisitor(NodeVisitor):
         return T.Definitions(values=dict(items))
 
     def visit_definition(self, node, c) -> Tuple[str, T.Type]:
-        id, _, type = c
+        _, id, _, _, type = c
         return (id, type)
 
     def visit_def_identifier(self, node, c) -> str:

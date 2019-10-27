@@ -88,7 +88,7 @@ array_extra = (plus / star)?
 
 opt_definitions = (def_where _ definitions)?
 definitions = _ definition (_ def_and _ definition)* _
-definition = def_identifier _ def_equal _ type
+definition = "<"? def_identifier ">"? _ def_equal _ type
 def_where = "where"
 def_and = "and"
 def_equal = "="
