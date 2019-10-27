@@ -23,7 +23,8 @@ backslash_char = "\\"
 non_quote_char = escaped_char / ~"[^\"]"
 escaped_char = backslash_char ~"."
 
-constant = backquote_char (neither_quote_nor_backquote / lit_string)* backquote_char
+constant = backquote_constant / lit_string
+backquote_constant = backquote_char (neither_quote_nor_backquote / lit_string)* backquote_char
 backquote_char = "`"
 neither_quote_nor_backquote = escaped_char / (~"[^\"`]")
 

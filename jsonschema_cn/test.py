@@ -42,6 +42,7 @@ class TestJSCN(unittest.TestCase):
 
     def test_constant(self):
         self.cmp("`123`", {"const": 123})
+        self.cmp('"123"', {"const": "123"})
         self.cmp('`"123"`', {"const": "123"})
         self.cmp('`{"a": 1}`', {"const": {"a": 1}})
 
@@ -52,6 +53,7 @@ class TestJSCN(unittest.TestCase):
 
     def test_enum(self):
         self.cmp("`1`|`2`|`3`", {"enum": [1, 2, 3]})
+        self.cmp('"1"|"2"|"3"', {"enum": ["1", "2", "3"]})
 
     def test_forbidden(self):
         self.assertEqual(Schema("forbidden").jsonschema, False)
