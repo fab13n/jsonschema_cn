@@ -1,7 +1,8 @@
 """PEG Grammar for JSON-Schema compact notation."""
+import re
 from parsimonious import Grammar
 
-grammar = Grammar(r"""
+src = r"""
 schema = _ type _ opt_definitions _
 type = sequence_and (_ or _ sequence_and)*
 sequence_and = simple_type (_ and _ simple_type)*
@@ -10,7 +11,7 @@ simple_type = litteral / kw_forbidden / string / object / integer / array /
        conditional
 parens = lparen _ type _ rparen
 
-litteral = "boolean" / "null" / "number"
+litteral = KEYWORD("boolean") / KEYWORD("null") / KEYWORD("number")
 
 lit_integer =  ~"0x[0-9a-fA-F]+" / ~"[0-9]+"
 lit_regex = regex_prefix lit_string
@@ -28,14 +29,14 @@ backquote_constant = backquote_char (neither_quote_nor_backquote / lit_string)* 
 backquote_char = "`"
 neither_quote_nor_backquote = escaped_char / (~"[^\"`]")
 
-string = "string" _ opt_cardinal
-integer = "integer" _ opt_cardinal _ opt_multiple
+string = KEYWORD("string") _ opt_cardinal
+integer = KEYWORD("integer") _ opt_cardinal _ opt_multiple
 opt_multiple = ("/" _ lit_integer)?
 
 not_type = kw_not _ simple_type
 
-regex_prefix = "r"
-format_prefix = "f"
+regex_prefix = KEYWORD("r")
+format_prefix = KEYWORD("f")
 wildcard = "_"
 or = "|"
 and = "&"
@@ -50,16 +51,19 @@ colon = ":"
 question = "?"
 star = "*"
 plus = "+"
-kw_array = "array"
-kw_forbidden = "forbidden"
-kw_if = "if"
-kw_then = "then"
-kw_elif = "elif"
-kw_else = "else"
-kw_not = "not"
-kw_object = "object"
-kw_only = "only"
-kw_unique = "unique"
+
+kw_array = KEYWORD("array")
+kw_forbidden = KEYWORD("forbidden")
+kw_if = KEYWORD("if")
+kw_then = KEYWORD("then")
+kw_elif = KEYWORD("elif")
+kw_else = KEYWORD("else")
+kw_not = KEYWORD("not")
+kw_object = KEYWORD("object")
+kw_only = KEYWORD("only")
+kw_unique = KEYWORD("unique")
+kw_where = KEYWORD("where")
+kw_and = KEYWORD("and")
 
 conditional =
     kw_if _ type _ kw_then _ type
@@ -97,11 +101,9 @@ array_non_empty = lbracket _ array_prefix _
 array_prefix = ((kw_only / kw_unique) _) *
 array_extra = (plus / star)?
 
-opt_definitions = (def_where _ definitions)?
-definitions = _ definition (_ def_and _ definition)* _
+opt_definitions = (kw_where _ definitions)?
+definitions = _ definition (_ kw_and _ definition)* _
 definition = "<"? def_identifier ">"? _ def_equal _ type
-def_where = "where"
-def_and = "and"
 def_equal = "="
 def_reference = "<" def_identifier ">"
 def_identifier = ~"[A-Za-z_][-A-Za-z_0-9]*"
@@ -110,4 +112,13 @@ _ = meaninglessness*
 meaninglessness = ~r"\s+" / comment
 comment = ~r"#[^\r\n]*"
 """
-)
+
+def parse_keywords(src):
+    """Replace occurences of KEYWORD("...") by a regex allowing all capitalizations
+    of the keyword between quotes."""
+    def f(m):
+        return '~"' + "".join(f"[{x}{x.upper()}]" for x in m[1]) + '"'
+    r = re.compile(r'KEYWORD\("([a-z]+)"\)')
+    return r.sub(f, src)
+
+grammar = Grammar(parse_keywords(src))

@@ -252,7 +252,7 @@ class TestJSCN(unittest.TestCase):
 
     def test_cond_1(self):
         self.cmp(
-            '''
+            r'''
             if {country: `"USA"`} then {code: <us_postcode>}
             elif {country: `"Canada"`} then {code: <ca_postcode>}
             elif {country: `"NL"`} then {code: <nl_postcode>}
@@ -301,16 +301,16 @@ class TestJSCN(unittest.TestCase):
                     }
                 },
                 "definitions": {
-                    "us_postcode": {"type": "string", "pattern": "\\d{5}(-\\d{4})?"},
-                    "ca_postcode": {"type": "string", "pattern": "[A-Z]\\d[A-Z] \\d[A-Z]\\d"},
-                    "nl_postcode": {"type": "string", "pattern": "[0-9]{4} [A-Z]{2}"}
+                    "us_postcode": {"type": "string", "pattern": r"\d{5}(-\d{4})?"},
+                    "ca_postcode": {"type": "string", "pattern": r"[A-Z]\d[A-Z] \d[A-Z]\d"},
+                    "nl_postcode": {"type": "string", "pattern": r"[0-9]{4} [A-Z]{2}"}
                 },
             }
         )
 
     def test_cond_2(self):
         self.cmp(
-            '''
+            r'''
             if {country: `"USA"`} then {code: <us_postcode>}
             else {code: string}
             where us_postcode = r"\d{5}(-\d{4})?"''',
@@ -331,14 +331,14 @@ class TestJSCN(unittest.TestCase):
                     "properties": {"code": {"type": "string"}}
                 },
                 "definitions": {
-                    "us_postcode": {"type": "string", "pattern": "\\d{5}(-\\d{4})?"}
+                    "us_postcode": {"type": "string", "pattern": r"\d{5}(-\d{4})?"}
                 },
             }
         )
 
     def test_cond_3(self):
         self.cmp(
-            '''
+            r'''
             if {country: `"USA"`} then {code: <us_postcode>}
             where us_postcode = r"\d{5}(-\d{4})?"''',
             {
@@ -353,10 +353,16 @@ class TestJSCN(unittest.TestCase):
                     "properties": {"code": {"$ref": "#/definitions/us_postcode"}}
                 },
                 "definitions": {
-                    "us_postcode": {"type": "string", "pattern": "\\d{5}(-\\d{4})?"}
+                    "us_postcode": {"type": "string", "pattern": r"\d{5}(-\d{4})?"}
                 },
             }
         )
+
+    def test_capitalized_keywords(self):
+        Schema('{ONLY <foo>: <bar>} WHERE foo = r"^[0-9]+$" AnD bar= r"^[a-z]+$"')
+        Schema('[UNIQUE integer+]')
+        with self.assertRaisesRegex(ValueError, "Missing definition"):
+            Schema('{x: <foo>} WHERE FOO=integer').to_jsonschema()
 
 
 if __name__ == '__main__':
