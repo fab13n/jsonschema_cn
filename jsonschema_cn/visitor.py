@@ -189,11 +189,11 @@ class TreeBuildingVisitor(NodeVisitor):
         else:  # Last type is the type of extra items
             additional_items = items[-1]
             items = items[:-1]
-        if card[0] is not None and len(types) >= card[0]:
+        if card[0] is not None and len(items) >= card[0]:
             card = (None, card[1])  # Constraint is redundant
-        if card[1] is not None and not additional_items and len(types) < card[1]:
+        if card[1] is not None and not additional_items and len(items) < card[1]:
             raise ValueError(
-                f"An array cannot be both {len(types)} and <={card[1]} items long"
+                f"An array cannot be both {len(items)} and <={card[1]} items long"
             )
 
         return T.Array(items=items, additional_items=additional_items, cardinal=card,

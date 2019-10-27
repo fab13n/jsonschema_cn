@@ -68,14 +68,19 @@ Objects are described between curly braces:
   force a type constraint on the associated values: `{only <word>:
   integer}`. If no naming constraint is desired, the name can be
   replace by an underscore wildcard: `{only _: integer}`.
-* To restrict additional property names without completely
-  forbidding them, a prefix constraint `only <regex>` can be added,
-  e.g. `{only r"[0-9]+" _: integer}` will only accept
-  integer-to-integer maps. References to definitions are also
-  accepted, as in `{only <int_string>} where int_string = r"[0-9]+"`.
+* To restrict property names without forbidding additional ones, a
+  prefix constraint `only <regex>` can be added, e.g. `{only r"[0-9]+"
+  _: integer}` will only accept integer-to-integer maps. References to
+  definitions are also accepted, as in `{only <int_string>} where
+  int_string = r"[0-9]+"`. Beware that according to JSONSchema,
+  explicitly listed properties must also respect the constraint.  So
+  if you want your properties to include `"default"`, plus optional
+  integers, you should specify ``{only <key>: {}, default: {}} where
+  key = r"^[0-9]+$" | `"default"` ``.
 * A special type `forbidden`, equivalent to JSONSchema's `false`, can
-  be used to specifically forbid a property name:
-  `{reserved_name: forbidden}`.
+  be used to specifically forbid a property name: `{reserved_name?:
+  forbidden}`. Notice that the question mark is mandatory: otherwise,
+  it would both expect the property, and accept no value in it.
 
 Types can be combined:
 
@@ -195,8 +200,11 @@ Some things that may be added in future versions:
       irrelevant.
     * tolerate chevrons around definitions, i.e `... where <foo> =
       ...` in addition to `... where foo = ...`?
-    * check that references as `propertyNames` indeed point at string types.
+    * check that references as `propertyNames` indeed point at string
+      types.
     * make keyword case-insensitive?
+    * treat `{foo: forbidden}` as `{foo?: forbidden}` as it's the only
+      thing that would make sense?
 * better error messages, on incorrect grammars, and on non-validating
   JSON data.
 * reciprocal feature: try and translate a JSON-schema into a shorter
