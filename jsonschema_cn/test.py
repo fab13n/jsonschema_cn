@@ -3,6 +3,8 @@ from . import Schema, Definitions
 import json
 import jsonschema
 from . import tree as T
+from parsimonious.exceptions import IncompleteParseError
+
 
 class TestJSCN(unittest.TestCase):
 
@@ -42,6 +44,11 @@ class TestJSCN(unittest.TestCase):
         self.cmp("`123`", {"const": 123})
         self.cmp('`"123"`', {"const": "123"})
         self.cmp('`{"a": 1}`', {"const": {"a": 1}})
+
+    def test_constant_with_backquote(self):
+        self.cmp(r'`"`"`', {"const": "`"})
+        with self.assertRaises(IncompleteParseError):
+            Schema('`{"foo": `}`')
 
     def test_enum(self):
         self.cmp("`1`|`2`|`3`", {"enum": [1, 2, 3]})
