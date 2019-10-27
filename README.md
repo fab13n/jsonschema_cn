@@ -89,6 +89,12 @@ Types can be combined:
 * With infix operator `|`: `A | B` is the type of objects which
   respect at least one of the schemas `A` or `B`. `&` takes precedence
   over `|`, i.e. `A & B | C & D` is to be read as `(A&B) | (C&D)`.
+* With conditional expressions: `if A then B elif C then D else E`
+  will enforce constraint `B` if constraint `A` is met, enforce `D` if
+  `C` is met, or enforce `E` if neither `A` nor `C` are met. `elif`
+  and `else` parts are optional. For instance, `if {country: "USA"}
+  then {postcode: r"\d{5}(-\d{4})?"} else {postcode: string}` will
+  only check the postcode with the regex if the country is `"USA"`.
 * Parentheses can be added to enforce precedences , e.g. `A & (B|C) & D`
 
 A top-level schema may contain definitions. They are listed after the
@@ -123,6 +129,7 @@ More formally
            | «forbidden»            # empty type (used mostly to disallow a property name).
            | object                 # structurally described object.
            | array                  # structurally described array.
+           | conditional            # conditional if/then/else rule
 
     cardinal ::= «{» int «}»        # Exactly that number of chars / items / properties.
                | «{» «_», int «}»   # At most that number of chars / items / properties.
@@ -153,6 +160,8 @@ More formally
             # Every extra item must be of that type.
             # if «+» occurs, the last type can be repeated from 1 to any times.
             # Every extra item must be of that type.
+
+    conditional ::= «if» type «then» type («elif» type «then» type)* («else» type)?
 
     int ::= /0x[0-9a-FA-F]+/ | /[0-9]+/
     identifier ::= /[A-Za-z_][A-Za-z_0-9]*/

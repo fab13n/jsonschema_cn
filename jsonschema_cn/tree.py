@@ -59,10 +59,10 @@ class Schema(Type):
     CONSTRUCTOR_KWARGS = ("value", "definitions")
 
     def to_jsonschema(self, check_definitions=True, prune_definitions=True):
-        r = self.value.to_jsonschema()
+        r = self.value.jsonschema
         if isinstance(r, dict):  # Could also be `False`
             if self.definitions.values:
-                r['definitions'] = self.definitions.to_jsonschema()
+                r['definitions'] = self.definitions.jsonschema
                 if prune_definitions:
                     self._prune_definitions(r)
             if check_definitions:
@@ -162,7 +162,7 @@ class Definitions(Type):
     CONSTRUCTOR_KWARGS = ("values",)
 
     def to_jsonschema(self):
-        return {k: v.to_jsonschema() for k, v in self.values.items()}
+        return {k: v.jsonschema for k, v in self.values.items()}
 
     def __or__(self, other):
         if isinstance(other, Definitions) or isinstance(other, dict):
@@ -247,13 +247,13 @@ class Constant(Type):
 class Operator(Type):
     CONSTRUCTOR_KWARGS = ("operator", "values")
     def to_jsonschema(self):
-        return {self.operator: [v.to_jsonschema() for v in self.values]}
+        return {self.operator: [v.jsonschema for v in self.values]}
 
 
 class Not(Type):
     CONSTRUCTOR_KWARGS = ("value",)
     def to_jsonschema(self):
-        return {"not": self.value.to_jsonschema()}
+        return {"not": self.value.jsonschema}
 
 
 class Enum(Type):
@@ -289,7 +289,7 @@ class Object(Type):
             if not opt:
                 required.append(k)
             if v is not None:
-                properties[k] = v.to_jsonschema()
+                properties[k] = v.jsonschema
         if required:
             r["required"] = required
         if properties:
@@ -298,9 +298,9 @@ class Object(Type):
         if self.additional_property_types is False:
             r["additionalProperties"] = False
         elif self.additional_property_types is not None:
-            r["additionalProperties"] = self.additional_property_types.to_jsonschema()
+            r["additionalProperties"] = self.additional_property_types.jsonschema
         if self.additional_property_names is not None:
-            r['propertyNames'] = self.additional_property_names.to_jsonschema()
+            r['propertyNames'] = self.additional_property_names.jsonschema
 
         implicit_card_min = len(required)
         implicit_card_max = (
@@ -334,15 +334,15 @@ class Array(Type):
         r = {"type": "array"}
 
         if self.items:  # Tuple array
-            r["items"] = [item.to_jsonschema() for item in self.items]
+            r["items"] = [item.jsonschema for item in self.items]
             if self.additional_items is False:  # No extra items allowed
                 r["additionalItems"] = False
             elif self.additional_items is True:  # Extra items with any type
                 pass
             else:  # extra items allowed, but wiht a constrained type
-                r["additionalItems"] = self.additional_items.to_jsonschema()
+                r["additionalItems"] = self.additional_items.jsonschema
         elif isinstance(self.additional_items, Type):  # List array with homogeneous type
-            r["items"] = self.additional_items.to_jsonschema()
+            r["items"] = self.additional_items.jsonschema
 
         card_min, card_max = self.cardinal
         implicit_card_min = len(self.items)
@@ -364,4 +364,14 @@ class Array(Type):
         if self.unique:
             r['uniqueItems'] = True
 
+        return r
+
+class Conditional(Type):
+
+    CONSTRUCTOR_KWARGS = ("if_term", "then_term", "else_term")
+
+    def to_jsonschema(self):
+        r = {"if": self.if_term.jsonschema, "then": self.then_term.jsonschema}
+        if self.else_term:
+            r["else"] = self.else_term.jsonschema
         return r

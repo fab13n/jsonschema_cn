@@ -65,7 +65,7 @@ class TreeBuildingVisitor(NodeVisitor):
         # This rule is space-free
         return T.Litteral(value=node.children[0].text)
 
-    def visit_forbidden(self, node, c) -> T.Forbidden:
+    def visit_kw_forbidden(self, node, c) -> T.Forbidden:
         return T.Forbidden()
 
     def visit_lit_string(self, node, c) -> str:
@@ -214,6 +214,21 @@ class TreeBuildingVisitor(NodeVisitor):
             return None
         else:
             return node.children[0].text
+
+    def visit_conditional(self, node, c):
+        _, if_term, _, then_term, elif_parts, else_part = c
+        else_term = else_part[0][1] if len(else_part) else None
+        elif_terms = [[cond, val] for (_, cond, _, val) in elif_parts]
+
+        def rec(c, t, elifs, e):
+            """Change elif pairs into nested if/then/else."""
+            if elifs:
+                (c2, t2) = elifs[-1]
+                return rec(c, t, elifs[:-1], rec(c2, t2, [], e))
+            else:
+                return T.Conditional(if_term=c, then_term=t, else_term= e)
+
+        return rec(if_term, then_term, elif_terms, else_term)
 
     def visit_opt_definitions(self, node, c) -> T.Definitions:
         if len(c) == 0:  # Empty definition

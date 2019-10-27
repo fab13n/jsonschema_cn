@@ -248,5 +248,114 @@ class TestJSCN(unittest.TestCase):
                       "B": {"const": "C"}}})
 
 
+    def test_cond_1(self):
+        self.cmp(
+            '''
+            if {country: `"USA"`} then {code: <us_postcode>}
+            elif {country: `"Canada"`} then {code: <ca_postcode>}
+            elif {country: `"NL"`} then {code: <nl_postcode>}
+            else {code: string}
+            where us_postcode = r"\d{5}(-\d{4})?"
+            and ca_postcode = r"[A-Z]\d[A-Z] \d[A-Z]\d"
+            and nl_postcode = r"[0-9]{4} [A-Z]{2}"''',
+            {
+                "if": {
+                    "type": "object",
+                    "required": ["country"],
+                    "properties": {"country": {"const": "USA"}}
+                },
+                "then": {
+                    "type": "object",
+                    "required": ["code"],
+                    "properties": {"code": {"$ref": "#/definitions/us_postcode"}}
+                },
+                "else": {
+                    "if": {
+                        "type": "object",
+                        "required": ["country"],
+                        "properties": {"country": {"const": "Canada"}}
+                    },
+                    "then": {
+                        "type": "object",
+                        "required": ["code"],
+                        "properties": {"code": {"$ref": "#/definitions/ca_postcode"}}
+                    },
+                    "else": {
+                        "if": {
+                            "type": "object",
+                            "required": ["country"],
+                            "properties": {"country": {"const": "NL"}}
+                        },
+                        "then": {
+                            "type": "object",
+                            "required": ["code"],
+                            "properties": {"code": {"$ref": "#/definitions/nl_postcode"}}
+                        },
+                        "else": {
+                            "type": "object",
+                            "required": ["code"],
+                            "properties": {"code": {"type": "string"}}
+                        }
+                    }
+                },
+                "definitions": {
+                    "us_postcode": {"type": "string", "pattern": "\\d{5}(-\\d{4})?"},
+                    "ca_postcode": {"type": "string", "pattern": "[A-Z]\\d[A-Z] \\d[A-Z]\\d"},
+                    "nl_postcode": {"type": "string", "pattern": "[0-9]{4} [A-Z]{2}"}
+                },
+            }
+        )
+
+    def test_cond_2(self):
+        self.cmp(
+            '''
+            if {country: `"USA"`} then {code: <us_postcode>}
+            else {code: string}
+            where us_postcode = r"\d{5}(-\d{4})?"''',
+            {
+                "if": {
+                    "type": "object",
+                    "required": ["country"],
+                    "properties": {"country": {"const": "USA"}}
+                },
+                "then": {
+                    "type": "object",
+                    "required": ["code"],
+                    "properties": {"code": {"$ref": "#/definitions/us_postcode"}}
+                },
+                "else": {
+                    "type": "object",
+                    "required": ["code"],
+                    "properties": {"code": {"type": "string"}}
+                },
+                "definitions": {
+                    "us_postcode": {"type": "string", "pattern": "\\d{5}(-\\d{4})?"}
+                },
+            }
+        )
+
+    def test_cond_3(self):
+        self.cmp(
+            '''
+            if {country: `"USA"`} then {code: <us_postcode>}
+            where us_postcode = r"\d{5}(-\d{4})?"''',
+            {
+                "if": {
+                    "type": "object",
+                    "required": ["country"],
+                    "properties": {"country": {"const": "USA"}}
+                },
+                "then": {
+                    "type": "object",
+                    "required": ["code"],
+                    "properties": {"code": {"$ref": "#/definitions/us_postcode"}}
+                },
+                "definitions": {
+                    "us_postcode": {"type": "string", "pattern": "\\d{5}(-\\d{4})?"}
+                },
+            }
+        )
+
+
 if __name__ == '__main__':
     unittest.main()

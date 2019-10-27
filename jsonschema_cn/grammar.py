@@ -5,8 +5,9 @@ grammar = Grammar(r"""
 schema = _ type _ opt_definitions _
 type = sequence_and (_ or _ sequence_and)*
 sequence_and = simple_type (_ and _ simple_type)*
-simple_type = litteral / forbidden / string / object / integer / array /
-       lit_regex / lit_format / constant / parens / not_type / def_reference
+simple_type = litteral / kw_forbidden / string / object / integer / array /
+       lit_regex / lit_format / constant / parens / not_type / def_reference /
+       conditional
 parens = lparen _ type _ rparen
 
 litteral = "boolean" / "null" / "number"
@@ -30,14 +31,13 @@ string = "string" _ opt_cardinal
 integer = "integer" _ opt_cardinal _ opt_multiple
 opt_multiple = ("/" _ lit_integer)?
 
-not_type = not _ simple_type
+not_type = kw_not _ simple_type
 
 regex_prefix = "r"
 format_prefix = "f"
 wildcard = "_"
 or = "|"
 and = "&"
-not = "not"
 lparen = "("
 rparen = ")"
 lbrace = "{"
@@ -50,10 +50,20 @@ question = "?"
 star = "*"
 plus = "+"
 kw_array = "array"
+kw_forbidden = "forbidden"
+kw_if = "if"
+kw_then = "then"
+kw_elif = "elif"
+kw_else = "else"
+kw_not = "not"
 kw_object = "object"
-only = "only"
-unique = "unique"
-forbidden = "forbidden"
+kw_only = "only"
+kw_unique = "unique"
+
+conditional =
+    kw_if _ type _ kw_then _ type
+    (_ kw_elif _ type _ kw_then _ type)*
+    (_ kw_else _ type)?
 
 opt_cardinal = (lbrace _ card_content _ rbrace)?
 card_content = card_2 / card_min / card_max / card_1
@@ -70,7 +80,7 @@ object_non_empty = lbrace _
                    object_pair (_ comma _ object_pair)* _
                    rbrace
                    opt_cardinal
-object_only = (only _ ((lit_regex/def_reference/wildcard) _ (colon _ type)?)? comma?)?
+object_only = (kw_only _ ((lit_regex/def_reference/wildcard) _ (colon _ type)?)? comma?)?
 object_pair = object_pair_name _ question? _ colon _ object_pair_type
 object_pair_name = lit_string / object_pair_unquoted_name
 object_pair_unquoted_name = ~"[A-Za-z0-9][-_A-Za-z0-9]*"
@@ -83,7 +93,7 @@ array_non_empty = lbracket _ array_prefix _
                   array_extra _
                   rbracket _
                   opt_cardinal
-array_prefix = ((only / unique) _) *
+array_prefix = ((kw_only / kw_unique) _) *
 array_extra = (plus / star)?
 
 opt_definitions = (def_where _ definitions)?
