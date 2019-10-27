@@ -24,6 +24,10 @@ class TreeBuildingVisitor(NodeVisitor):
     }
 
     @staticmethod
+    def unescape_string(escaped):
+        return escaped.encode("utf-8").decode("unicode_escape")
+
+    @staticmethod
     def gather_separated_list(first_item, other_items_with_separators) -> tuple:
         return (first_item, ) + tuple(item[1] for item in other_items_with_separators)
 
@@ -70,16 +74,16 @@ class TreeBuildingVisitor(NodeVisitor):
 
     def visit_lit_string(self, node, c) -> str:
         # This rule is space-free
-        source = node.text[1:-1]
-        unescaped = source.encode("utf-8").decode("unicode_escape")
-        return unescaped
+        return node.text[1:-1]
 
     def visit_lit_regex(self, node, c) -> T.String:
         # This rule is space-free
+        # Don't unescape the string
         return T.String(format=None, cardinal=(None, None), regex=node.children[-1].text[1:-1])
 
     def visit_lit_format(self, node, c) -> T.String:
         # This rule is space-free
+        # No need to unescape
         return T.String(cardinal=(None, None), regex=None, format=node.children[-1].text[1:-1])
 
     def visit_opt_multiple(self, node, c) -> Optional[int]:
@@ -109,7 +113,7 @@ class TreeBuildingVisitor(NodeVisitor):
 
     def visit_constant(self, node, c) -> T.Constant:
         # This rule is space-free
-        source = node.text
+        source = node.text  # No need to unescape
         if source[0] == '`':
             assert source[-1] == '`'
             source = source[1:-1]
@@ -144,7 +148,7 @@ class TreeBuildingVisitor(NodeVisitor):
         if not isinstance(val, T.Type):  # wildcard
             val = None
         is_optional = bool(question) | isinstance(val, T.Forbidden)
-        return T.ObjectProperty(key, is_optional, val)
+        return T.ObjectProperty(self.unescape_string(key), is_optional, val)
 
     def visit_object_pair_unquoted_name(self, node, c) -> str:
         return node.text
