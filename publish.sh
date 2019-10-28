@@ -1,7 +1,13 @@
 #!/bin/bash
 VERSION=$1
 if [[ "$VERSION" == "" ]]; then
-    echo "Usage: $0 <version number>"
+    CURRENT_VERSION=$(cat jsonschema_cn/__init__.py | grep '^\s*__version__\s*=' | cut -d'"' -f2)
+    echo "Usage: $0 <new_version number>. Current version is $CURRENT_VERSION."
+    if git tag | grep -q "^v$CURRENT_VERSION$"; then
+        echo "This version has already been tagged."
+    else
+        echo "This version has not been tagged yet."
+    fi
     exit 1
 fi
 
