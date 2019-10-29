@@ -4,6 +4,7 @@ import json
 import jsonschema
 from . import tree as T
 from parsimonious.exceptions import IncompleteParseError
+import re
 
 
 class TestJSCN(unittest.TestCase):
@@ -363,6 +364,43 @@ class TestJSCN(unittest.TestCase):
         Schema('[UNIQUE integer+]')
         with self.assertRaisesRegex(ValueError, "Missing definition"):
             Schema('{x: <foo>} WHERE FOO=integer').to_jsonschema()
+
+    def str_check(self, src: str):
+        s = Schema(src)
+        src2 = str(s)
+        src = re.sub(r"\s+", "", src)
+        src2 = re.sub(r"\s+", "", src2)
+        self.assertEqual(src, src2)
+
+    def test_str_cardinal(self):
+        self.str_check("integer")
+        self.str_check("integer{_, 123}")
+        self.str_check("integer{123, _}")
+        self.str_check("integer{1, 23}")
+
+    def test_str_object(self):
+        self.str_check('{}')
+        self.str_check('{only r"a-z"}')
+        self.str_check('{only r"a-z": integer}')
+        self.str_check('{only r"a-z", "foo": string}')
+        self.str_check('{"foo": string}')
+
+    def test_str_array(self):
+        self.str_check('[]')
+        self.str_check('[only boolean]')
+        self.str_check('[boolean*]')
+        self.str_check('[only unique boolean]')
+        self.str_check('[only boolean, integer]')
+        self.str_check('[only boolean, integer, integer]')
+
+    def test_str_schema(self):
+        self.str_check('<x> where x=`1`')
+        self.str_check('<x>|<y> where x=`1` and y=`2`')
+
+    def test_str_str(self):
+        self.str_check('string')
+        self.str_check('r"123"')
+        self.str_check('f"123"')
 
 
 if __name__ == '__main__':

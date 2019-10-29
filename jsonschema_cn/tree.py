@@ -156,6 +156,15 @@ class Schema(Type):
                 format_checker=jsonschema.draft7_format_checker,
             )
 
+    def __str__(self):
+        if self.definitions.values:
+            return f"{self.value} {self.definitions}"
+        else:
+            return self.value.__str__()
+
+    def __repr__(self):
+        return f"Schema('{self}')"
+
 
 class Definitions(Type):
 
@@ -191,6 +200,11 @@ class Definitions(Type):
             definitions |= Definitions(values={name: schema.value})
         return definitions
 
+    def __str__(self):
+        if self.values:
+            return "where " + " and ".join(f"{k} = {v}" for k, v in self.values.items())
+        else:
+            return "<empty definitions>"
 
 class Integer(Type):
 
@@ -205,6 +219,19 @@ class Integer(Type):
             r["maximum"] = card_max
         if self.multiple is not None:
             r["multipleOf"] = self.multiple
+        return r
+
+    def __str__(self):
+        r = "integer"
+        (card_min, card_max) = self.cardinal
+        if card_min is not None and card_max is not None:
+            r += "{"+str(card_min)+", "+str(card_max)+"}"
+        elif card_min is not None:
+            r += "{"+str(card_min)+", _}"
+        elif card_max is not None:
+            r += "{_, "+str(card_max)+"}"
+        if self.multiple is not None:
+            r += f"/{self.multiple}"
         return r
 
 
@@ -225,48 +252,74 @@ class String(Type):
             r["pattern"] = self.regex
         return r
 
+    def __str__(self):
+        if self.format is not None:
+            r = f'f"{self.format}"'
+        elif self.regex is not None:
+            r = f'r"{self.regex}"'  # TODO What about escaping special chars?
+        else:
+            r = 'string'
+        (card_min, card_max) = self.cardinal
+        if card_min is not None and card_max is not None:
+            r += "{"+str(card_min)+", "+str(card_max)+"}"
+        elif card_min is not None:
+            r += "{"+str(card_min)+", _}"
+        elif card_max is not None:
+            r += "{_, "+str(card_max)+"}"
+        return r
+
 
 class Forbidden(Type):
     CONSTRUCTOR_KWARGS = ()
     def to_jsonschema(self):
         return False
 
+    def __str__(self):
+        return "forbidden"
 
 class Litteral(Type):
     CONSTRUCTOR_KWARGS = ("value",)
     def to_jsonschema(self):
         return {"type": self.value}
 
+    def __str__(self):
+        return self.value
 
 class Constant(Type):
     CONSTRUCTOR_KWARGS = ("value",)
     def to_jsonschema(self):
         return {"const": self.value}
-
+    def __str__(self):
+        return f"`{self.value}`"
 
 class Operator(Type):
     CONSTRUCTOR_KWARGS = ("operator", "values")
     def to_jsonschema(self):
         return {self.operator: [v.jsonschema for v in self.values]}
-
+    def __str__(self):
+        op = {'oneOf': '|', 'allOf': '&'}[self.operator]
+        return op.join(v.__str__() for v in self.values)
 
 class Not(Type):
     CONSTRUCTOR_KWARGS = ("value",)
     def to_jsonschema(self):
         return {"not": self.value.jsonschema}
-
+    def __str__(self):
+        return f"not {self.value}"
 
 class Enum(Type):
     CONSTRUCTOR_KWARGS = ("values",)
     def to_jsonschema(self):
         return {"enum": list(self.values)}
-
+    def __str__(self):
+        return "|".join(f"`v`" for v in self.values)
 
 class Reference(Type):
     CONSTRUCTOR_KWARGS = ("value",)
     def to_jsonschema(self):
         return {"$ref": "#/definitions/" + self.value}
-
+    def __str__(self):
+        return f"<{self.value}>"
 
 class ObjectProperty(NamedTuple):
     name: Optional[str]
@@ -322,6 +375,42 @@ class Object(Type):
                 )
         return r
 
+    def __str__(self):
+        if self.additional_property_names and self.additional_property_types:
+            only = f"only {self.additional_property_names}: {self.additional_property_types}"
+        elif self.additional_property_names:
+            only = f"only {self.additional_property_names}"
+        elif self.additional_property_types:
+            only = f"only _: {self.additional_property_types}"
+        else:
+            only = None
+        if self.properties:
+            def f(item):
+                (name, opt, t) = item
+                opt = "?" if opt else ""
+                t = "_" if t is None else t.__str__()
+                return f'"{name}"{opt}: {t}'
+            properties = ", ".join(f(item) for item in self.properties)
+        else:
+            properties = None
+        if only is not None and properties is not None:
+            r = only + ", " + properties
+        elif only is not None:
+            r = only
+        elif properties is not None:
+            r = properties
+        else:
+            r = " "
+        r = "{" + r + "}"
+        (card_min, card_max) = self.cardinal
+        if card_min is not None and card_max is not None:
+            r += "{"+str(card_min)+", "+str(card_max)+"}"
+        elif card_min is not None:
+            r += "{"+str(card_min)+", _}"
+        elif card_max is not None:
+            r += "{_, "+str(card_max)+"}"
+        return r
+
 
 class Array(Type):
 
@@ -366,6 +455,36 @@ class Array(Type):
 
         return r
 
+    def __str__(self):
+        if self.additional_items is False:
+            prefix = f"only "
+        else:
+            prefix = ""
+        if self.unique:
+            prefix += "unique "
+        items = [str(item) for item in self.items]
+        if isinstance(self.additional_items, Type):
+            items.append(f"{self.additional_items}*")
+        items = ", ".join(items)
+        r = f"[{prefix}{items}]"
+        if prefix and items:
+            r = f"[{prefix}{items}]"
+        elif prefix:
+            r = f"[{prefix.strip()}]"
+        elif items:
+            r = f"[{items}]"
+        else:
+            r = "[ ]"
+        (card_min, card_max) = self.cardinal
+        if card_min is not None and card_max is not None:
+            r += "{"+str(card_min)+", "+str(card_max)+"}"
+        elif card_min is not None:
+            r += "{"+str(card_min)+", _}"
+        elif card_max is not None:
+            r += "{_, "+str(card_max)+"}"
+        return r
+
+
 class Conditional(Type):
 
     CONSTRUCTOR_KWARGS = ("if_term", "then_term", "else_term")
@@ -374,4 +493,10 @@ class Conditional(Type):
         r = {"if": self.if_term.jsonschema, "then": self.then_term.jsonschema}
         if self.else_term:
             r["else"] = self.else_term.jsonschema
+        return r
+
+    def __str__(self):
+        r = f"if {self.if_term} then {self.then_term}"
+        if self.else_term is not None:
+            r += f" {self.else_term}"
         return r
