@@ -341,8 +341,7 @@ class Object(Type):
         for (k, opt, v) in self.properties:
             if not opt:
                 required.append(k)
-            if v is not None:
-                properties[k] = v.jsonschema
+            properties[k] = v.jsonschema if v is not None else True
         if required:
             r["required"] = required
         if properties:

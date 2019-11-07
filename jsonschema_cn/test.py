@@ -402,6 +402,14 @@ class TestJSCN(unittest.TestCase):
         self.str_check('r"123"')
         self.str_check('f"123"')
 
+    def test_wildcard_props(self):
+        self.cmp('{only x: string, y?: _}', {
+            "type": "object",
+            "required": ["x"],
+            "properties": {"x": {"type": "string"}, "y": True},
+            "additionalProperties": False
+        })
+
 
 if __name__ == '__main__':
     unittest.main()
