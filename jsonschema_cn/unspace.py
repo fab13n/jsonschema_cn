@@ -1,7 +1,9 @@
 from parsimonious import NodeVisitor
 
+
 class UnspaceVisitor(NodeVisitor):
     """Remove space tokens from a Parsimonious parse tree."""
+
     # TODO generate a set of space offsets in the code, so that they can
     # be compacted properly, including comments and excluding string contents.
 

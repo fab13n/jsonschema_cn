@@ -31,8 +31,10 @@ class Type(ABC):
 
     def prettily(self):
         """Return a unicode, pretty-printed representation of me."""
+
         def indent(text):
-            return '\n'.join(('    ' + line) for line in text.splitlines())
+            return "\n".join(("    " + line) for line in text.splitlines())
+
         if not self.CONSTRUCTOR_KWARGS:
             return self.__class__.__name__
         else:
@@ -63,7 +65,7 @@ class Schema(Type):
         r = self.value.jsonschema
         if isinstance(r, dict):  # Could also be `False`
             if self.definitions.values:
-                r['definitions'] = self.definitions.jsonschema
+                r["definitions"] = self.definitions.jsonschema
                 if prune_definitions:
                     self._prune_definitions(r)
             if check_definitions:
@@ -71,7 +73,7 @@ class Schema(Type):
             # Recreate the dict to change keys order
             r2 = {
                 "$schema": "http://json-schema.org/draft-07/schema#",
-                "$comment": str(self)
+                "$comment": str(self),
             }
             r2.update(r)
             r = r2
@@ -90,10 +92,10 @@ class Schema(Type):
         occurring_references = self._get_dict_references(schema)
         eliminated_references = False
         while True:
-            for k in list(schema['definitions'].keys()):
+            for k in list(schema["definitions"].keys()):
                 # Freeze the keys into a list, so that `del` won't interfere
                 if k not in occurring_references:
-                    del schema['definitions'][k]
+                    del schema["definitions"][k]
                     eliminated_references = True
             if eliminated_references:
                 # Some unused references have been removed.
@@ -136,7 +138,9 @@ class Schema(Type):
             combined_content = Operator(operator=op, values=args)
             combined_defs = self.definitions | other.definitions
             return Schema(value=combined_content, definitions=combined_defs)
-        elif op == 'anyOf' and (isinstance(other, Definitions) or isinstance(other, dict)):
+        elif op == "anyOf" and (
+            isinstance(other, Definitions) or isinstance(other, dict)
+        ):
             # Schema + additional definitions
             # TODO Maybe '+' is a more appropriate operator than '|'?
             if isinstance(other, dict):
@@ -144,23 +148,22 @@ class Schema(Type):
             combined_defs = self.definitions | other
             return Schema(value=self.value, definitions=combined_defs)
         else:
-            raise ValueError("Schemas can only be combined with each other or with definitions")
-
+            raise ValueError(
+                "Schemas can only be combined with each other or with definitions"
+            )
 
     def __and__(self, other):
-        return self._combine(other, 'allOf')
+        return self._combine(other, "allOf")
 
     def __or__(self, other):
-        return self._combine(other, 'anyOf')
+        return self._combine(other, "anyOf")
 
     def validate(self, data=None):
         if data is None:  # Validate the schema itself
             jsonschema.Draft7Validator.check_schema(self.jsonschema)
         else:  # Validate a piece of data against the schema
             jsonschema.validate(
-                data,
-                self.jsonschema,
-                format_checker=jsonschema.draft7_format_checker,
+                data, self.jsonschema, format_checker=jsonschema.draft7_format_checker,
             )
 
     def __str__(self):
@@ -185,9 +188,13 @@ class Definitions(Type):
             if isinstance(other, dict):
                 other = Definitions.from_dict(other)
             overlap = set(self.values.keys()) & set(other.values.keys())
-            conflicts = sorted(name for name in overlap if self.values[name] != other.values[name])
+            conflicts = sorted(
+                name for name in overlap if self.values[name] != other.values[name]
+            )
             if conflicts:
-                raise ValueError(f"Cannot merge definitions, conflict over {', '.join(conflicts)}")
+                raise ValueError(
+                    f"Cannot merge definitions, conflict over {', '.join(conflicts)}"
+                )
             defs = dict(self.values)
             defs.update(other.values)
             return Definitions(values=defs)
@@ -202,7 +209,8 @@ class Definitions(Type):
         for name, schema in d.items():
             if isinstance(schema, str):
                 from .visitor import parse
-                schema = parse('schema', schema)
+
+                schema = parse("schema", schema)
             definitions |= schema.definitions
             definitions |= Definitions(values={name: schema.value})
         return definitions
@@ -212,6 +220,7 @@ class Definitions(Type):
             return "where " + " and ".join(f"{k} = {v}" for k, v in self.values.items())
         else:
             return "<empty definitions>"
+
 
 class Integer(Type):
 
@@ -232,11 +241,11 @@ class Integer(Type):
         r = "integer"
         (card_min, card_max) = self.cardinal
         if card_min is not None and card_max is not None:
-            r += "{"+str(card_min)+", "+str(card_max)+"}"
+            r += "{" + str(card_min) + ", " + str(card_max) + "}"
         elif card_min is not None:
-            r += "{"+str(card_min)+", _}"
+            r += "{" + str(card_min) + ", _}"
         elif card_max is not None:
-            r += "{_, "+str(card_max)+"}"
+            r += "{_, " + str(card_max) + "}"
         if self.multiple is not None:
             r += f"/{self.multiple}"
         return r
@@ -265,68 +274,87 @@ class String(Type):
         elif self.regex is not None:
             r = f'r"{self.regex}"'  # TODO What about escaping special chars?
         else:
-            r = 'string'
+            r = "string"
         (card_min, card_max) = self.cardinal
         if card_min is not None and card_max is not None:
-            r += "{"+str(card_min)+", "+str(card_max)+"}"
+            r += "{" + str(card_min) + ", " + str(card_max) + "}"
         elif card_min is not None:
-            r += "{"+str(card_min)+", _}"
+            r += "{" + str(card_min) + ", _}"
         elif card_max is not None:
-            r += "{_, "+str(card_max)+"}"
+            r += "{_, " + str(card_max) + "}"
         return r
 
 
 class Forbidden(Type):
     CONSTRUCTOR_KWARGS = ()
+
     def to_jsonschema(self):
         return False
 
     def __str__(self):
         return "forbidden"
 
+
 class Litteral(Type):
     CONSTRUCTOR_KWARGS = ("value",)
+
     def to_jsonschema(self):
         return {"type": self.value}
 
     def __str__(self):
         return self.value
 
+
 class Constant(Type):
     CONSTRUCTOR_KWARGS = ("value",)
+
     def to_jsonschema(self):
         return {"const": self.value}
+
     def __str__(self):
         return f"`{self.value}`"
 
+
 class Operator(Type):
     CONSTRUCTOR_KWARGS = ("operator", "values")
+
     def to_jsonschema(self):
         return {self.operator: [v.jsonschema for v in self.values]}
+
     def __str__(self):
-        op = {'oneOf': '|', 'allOf': '&'}[self.operator]
+        op = {"oneOf": "|", "allOf": "&"}[self.operator]
         return op.join(v.__str__() for v in self.values)
+
 
 class Not(Type):
     CONSTRUCTOR_KWARGS = ("value",)
+
     def to_jsonschema(self):
         return {"not": self.value.jsonschema}
+
     def __str__(self):
         return f"not {self.value}"
 
+
 class Enum(Type):
     CONSTRUCTOR_KWARGS = ("values",)
+
     def to_jsonschema(self):
         return {"enum": list(self.values)}
+
     def __str__(self):
         return "|".join(f"`v`" for v in self.values)
 
+
 class Reference(Type):
     CONSTRUCTOR_KWARGS = ("value",)
+
     def to_jsonschema(self):
         return {"$ref": "#/definitions/" + self.value}
+
     def __str__(self):
         return f"<{self.value}>"
+
 
 class ObjectProperty(NamedTuple):
     name: Optional[str]
@@ -336,9 +364,12 @@ class ObjectProperty(NamedTuple):
 
 class Object(Type):
 
-    CONSTRUCTOR_KWARGS = ("properties", "cardinal",
-                          "additional_property_types",
-                          "additional_property_names")
+    CONSTRUCTOR_KWARGS = (
+        "properties",
+        "cardinal",
+        "additional_property_types",
+        "additional_property_names",
+    )
 
     def to_jsonschema(self):
         card_min, card_max = self.cardinal
@@ -359,7 +390,7 @@ class Object(Type):
         elif self.additional_property_types is not None:
             r["additionalProperties"] = self.additional_property_types.jsonschema
         if self.additional_property_names is not None:
-            r['propertyNames'] = self.additional_property_names.jsonschema
+            r["propertyNames"] = self.additional_property_names.jsonschema
 
         implicit_card_min = len(required)
         implicit_card_max = (
@@ -391,15 +422,18 @@ class Object(Type):
         else:
             only = None
         if self.properties:
+
             def needs_quotes(name):
-                return name in ('only', 'unique') or not re.match(r"^\w+$", name)
+                return name in ("only", "unique") or not re.match(r"^\w+$", name)
+
             def pair_str(item):
                 (name, opt, t) = item
                 opt = "?" if opt else ""
                 if needs_quotes(name):
                     name = json.dumps(name)
                 t = "_" if t is None else t.__str__()
-                return f'{name}{opt}: {t}'
+                return f"{name}{opt}: {t}"
+
             properties = ", ".join(pair_str(item) for item in self.properties)
         else:
             properties = None
@@ -414,11 +448,11 @@ class Object(Type):
         r = "{" + r + "}"
         (card_min, card_max) = self.cardinal
         if card_min is not None and card_max is not None:
-            r += "{"+str(card_min)+", "+str(card_max)+"}"
+            r += "{" + str(card_min) + ", " + str(card_max) + "}"
         elif card_min is not None:
-            r += "{"+str(card_min)+", _}"
+            r += "{" + str(card_min) + ", _}"
         elif card_max is not None:
-            r += "{_, "+str(card_max)+"}"
+            r += "{_, " + str(card_max) + "}"
         return r
 
 
@@ -427,9 +461,9 @@ class Array(Type):
     CONSTRUCTOR_KWARGS = ("items", "additional_items", "cardinal", "unique")
 
     def to_jsonschema(self):
-        #types = self.kwargs["types"]
-        #extra_type = self.kwargs["additional_types"]
-        #card_min, card_max = self.kwargs["cardinal"]
+        # types = self.kwargs["types"]
+        # extra_type = self.kwargs["additional_types"]
+        # card_min, card_max = self.kwargs["cardinal"]
         r = {"type": "array"}
 
         if self.items:  # Tuple array
@@ -440,7 +474,9 @@ class Array(Type):
                 pass
             else:  # extra items allowed, but wiht a constrained type
                 r["additionalItems"] = self.additional_items.jsonschema
-        elif isinstance(self.additional_items, Type):  # List array with homogeneous type
+        elif isinstance(
+            self.additional_items, Type
+        ):  # List array with homogeneous type
             r["items"] = self.additional_items.jsonschema
 
         card_min, card_max = self.cardinal
@@ -461,7 +497,7 @@ class Array(Type):
                 r["maxItems"] = card_max
 
         if self.unique:
-            r['uniqueItems'] = True
+            r["uniqueItems"] = True
 
         return r
 
@@ -487,11 +523,11 @@ class Array(Type):
             r = "[ ]"
         (card_min, card_max) = self.cardinal
         if card_min is not None and card_max is not None:
-            r += "{"+str(card_min)+", "+str(card_max)+"}"
+            r += "{" + str(card_min) + ", " + str(card_max) + "}"
         elif card_min is not None:
-            r += "{"+str(card_min)+", _}"
+            r += "{" + str(card_min) + ", _}"
         elif card_max is not None:
-            r += "{_, "+str(card_max)+"}"
+            r += "{_, " + str(card_max) + "}"
         return r
 
 

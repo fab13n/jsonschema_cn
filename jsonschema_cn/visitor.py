@@ -29,7 +29,7 @@ class TreeBuildingVisitor(NodeVisitor):
 
     @staticmethod
     def gather_separated_list(first_item, other_items_with_separators) -> tuple:
-        return (first_item, ) + tuple(item[1] for item in other_items_with_separators)
+        return (first_item,) + tuple(item[1] for item in other_items_with_separators)
 
     def visit_schema(self, node, c) -> T.Schema:
         value, definitions = c
@@ -79,12 +79,16 @@ class TreeBuildingVisitor(NodeVisitor):
     def visit_lit_regex(self, node, c) -> T.String:
         # This rule is space-free
         # Don't unescape the string
-        return T.String(format=None, cardinal=(None, None), regex=node.children[-1].text[1:-1])
+        return T.String(
+            format=None, cardinal=(None, None), regex=node.children[-1].text[1:-1]
+        )
 
     def visit_lit_format(self, node, c) -> T.String:
         # This rule is space-free
         # No need to unescape
-        return T.String(cardinal=(None, None), regex=None, format=node.children[-1].text[1:-1])
+        return T.String(
+            cardinal=(None, None), regex=None, format=node.children[-1].text[1:-1]
+        )
 
     def visit_opt_multiple(self, node, c) -> Optional[int]:
         return None if len(c) == 0 else c[0][1]
@@ -96,7 +100,7 @@ class TreeBuildingVisitor(NodeVisitor):
         uc = c[0][1]
         if isinstance(uc, int):
             return (uc, uc)
-        else: # Pair of ints/nulls
+        else:  # Pair of ints/nulls
             return uc
 
     def visit_card_min(self, node, c) -> Tuple[int, None]:
@@ -114,8 +118,8 @@ class TreeBuildingVisitor(NodeVisitor):
     def visit_constant(self, node, c) -> T.Constant:
         # This rule is space-free
         source = node.text  # No need to unescape
-        if source[0] == '`':
-            assert source[-1] == '`'
+        if source[0] == "`":
+            assert source[-1] == "`"
             source = source[1:-1]
         try:
             value = json.loads(source)
@@ -128,18 +132,19 @@ class TreeBuildingVisitor(NodeVisitor):
             properties=[],
             additional_property_types=None,
             additional_property_names=None,
-            cardinal=c[-1])
+            cardinal=c[-1],
+        )
 
     def visit_object_empty(self, node, c) -> T.Object:
-        kwargs = {'properties': []}
-        _,  additional_props, _, kwargs['cardinal'] = c
+        kwargs = {"properties": []}
+        _, additional_props, _, kwargs["cardinal"] = c
         kwargs.update(additional_props)
         return T.Object(**kwargs)
 
     def visit_object_non_empty(self, node, c) -> T.Object:
         kwargs = {}
-        _,  additional_props, first_field, other_fields, _, kwargs['cardinal'] = c
-        kwargs['properties'] = self.gather_separated_list(first_field, other_fields)
+        _, additional_props, first_field, other_fields, _, kwargs["cardinal"] = c
+        kwargs["properties"] = self.gather_separated_list(first_field, other_fields)
         kwargs.update(additional_props)
         return T.Object(**kwargs)
 
@@ -153,15 +158,21 @@ class TreeBuildingVisitor(NodeVisitor):
     def visit_object_pair_unquoted_name(self, node, c) -> str:
         return node.text
 
-    def visit_object_only(self, node, c) -> Tuple[bool, Optional[T.Type], Optional[T.Type]]:
+    def visit_object_only(
+        self, node, c
+    ) -> Tuple[bool, Optional[T.Type], Optional[T.Type]]:
         """Parse `only`, `only <pattern>`, `only <pattern>: <type>` + optional coma."""
         if len(c) == 0:  # Empty sequence
-            return {'additional_property_names': None,
-                    'additional_property_types': None}
+            return {
+                "additional_property_names": None,
+                "additional_property_types": None,
+            }
         _, maybe_something, _ = c[0]
-        if len(maybe_something) == 0: # keyword "only" alone
-            return {'additional_property_names': None,
-                    'additional_property_types': False}
+        if len(maybe_something) == 0:  # keyword "only" alone
+            return {
+                "additional_property_names": None,
+                "additional_property_types": False,
+            }
         maybe_name, maybe_type = maybe_something[0]
         if len(maybe_name) == 0:
             maybe_name = None
@@ -171,8 +182,10 @@ class TreeBuildingVisitor(NodeVisitor):
             maybe_type = maybe_type[0][1]
         else:
             maybe_type = None
-        return {'additional_property_names': maybe_name,
-                'additional_property_types': maybe_type}
+        return {
+            "additional_property_names": maybe_name,
+            "additional_property_types": maybe_type,
+        }
 
     def visit_array_empty(self, node, c) -> T.Array:
         return T.Array(items=[], additional_items=True, cardinal=c[-1], unique=False)
@@ -204,8 +217,12 @@ class TreeBuildingVisitor(NodeVisitor):
                 f"An array cannot be both {len(items)} and <={card[1]} items long"
             )
 
-        return T.Array(items=items, additional_items=additional_items, cardinal=card,
-                       unique="unique" in array_prefix)
+        return T.Array(
+            items=items,
+            additional_items=additional_items,
+            cardinal=card,
+            unique="unique" in array_prefix,
+        )
 
     def visit_array_prefix(self, node, c) -> Set[str]:
         """Return a set of strings among "unique" and "only"."""
@@ -233,7 +250,7 @@ class TreeBuildingVisitor(NodeVisitor):
                 (c2, t2) = elifs[-1]
                 return rec(c, t, elifs[:-1], rec(c2, t2, [], e))
             else:
-                return T.Conditional(if_term=c, then_term=t, else_term= e)
+                return T.Conditional(if_term=c, then_term=t, else_term=e)
 
         return rec(if_term, then_term, elif_terms, else_term)
 

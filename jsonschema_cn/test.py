@@ -8,7 +8,6 @@ import re
 
 
 class TestJSCN(unittest.TestCase):
-
     def cmp(self, src, sch: dict) -> None:
         if isinstance(src, str):
             sch2 = Schema(src).jsonschema
@@ -29,19 +28,19 @@ class TestJSCN(unittest.TestCase):
     def test_lit_string(self):
         self.cmp('r"foo"', {"type": "string", "pattern": "foo"})
         self.cmp('f"foo"', {"type": "string", "format": "foo"})
-        self.cmp('r"foo\\\"bar"', {"type": "string", "pattern": r'foo\"bar'})
-        self.cmp('r"foo\\""', {"type": "string", "pattern": r'foo\"'})
+        self.cmp('r"foo\\"bar"', {"type": "string", "pattern": r"foo\"bar"})
+        self.cmp('r"foo\\""', {"type": "string", "pattern": r"foo\""})
 
     def test_integer(self):
-        self.cmp('integer{_,1}', {"type": "integer", "maximum": 1})
-        self.cmp('integer{1,_}', {"type": "integer", "minimum": 1})
-        self.cmp('integer{0,10}', {"type": "integer", "minimum": 0, "maximum": 10})
-        self.cmp('integer/5', {"type": "integer", "multipleOf": 5})
+        self.cmp("integer{_,1}", {"type": "integer", "maximum": 1})
+        self.cmp("integer{1,_}", {"type": "integer", "minimum": 1})
+        self.cmp("integer{0,10}", {"type": "integer", "minimum": 0, "maximum": 10})
+        self.cmp("integer/5", {"type": "integer", "multipleOf": 5})
 
     def test_string(self):
-        self.cmp('string{_,1}', {"type": "string", "maxLength": 1})
-        self.cmp('string{1,_}', {"type": "string", "minLength": 1})
-        self.cmp('string{0,10}', {"type": "string", "minLength": 0, "maxLength": 10})
+        self.cmp("string{_,1}", {"type": "string", "maxLength": 1})
+        self.cmp("string{1,_}", {"type": "string", "minLength": 1})
+        self.cmp("string{0,10}", {"type": "string", "minLength": 0, "maxLength": 10})
 
     def test_constant(self):
         self.cmp("`123`", {"const": 123})
@@ -60,10 +59,12 @@ class TestJSCN(unittest.TestCase):
 
     def test_forbidden(self):
         self.assertEqual(Schema("forbidden").jsonschema, False)
-        self.assertDictEqual(Schema("{x: forbidden}").jsonschema,
-                             Schema("{x?: forbidden}").jsonschema)
-        self.assertNotEqual(Schema("{x: `1`}").jsonschema,
-                            Schema("{x?: `1`}").jsonschema)
+        self.assertDictEqual(
+            Schema("{x: forbidden}").jsonschema, Schema("{x?: forbidden}").jsonschema
+        )
+        self.assertNotEqual(
+            Schema("{x: `1`}").jsonschema, Schema("{x?: `1`}").jsonschema
+        )
 
     def test_object_empty(self):
         obj = {"type": "object"}
@@ -71,28 +72,35 @@ class TestJSCN(unittest.TestCase):
         self.cmp("object", obj)
 
     def test_object_simple(self):
-        self.cmp("{only foo: integer}",
-                 {"type": "object",
-                  "required": ["foo"],
-                  "properties":
-                  {"foo": {"type": "integer"}},
-                  "additionalProperties": False})
-        self.cmp("{foo: integer}",
-                 {"type": "object",
-                  "required": ["foo"],
-                  "properties":
-                  {"foo": {"type": "integer"}}})
-        self.cmp("{foo?: integer}",
-                 {"type": "object",
-                  "properties":
-                  {"foo": {"type": "integer"}}})
-        self.cmp('{"foo"?: integer}',
-                 {"type": "object",
-                  "properties":
-                  {"foo": {"type": "integer"}}})
-        self.cmp('{_: integer}',
-                 {"type": "object",
-                  "additionalProperties": {"type": "integer"}})
+        self.cmp(
+            "{only foo: integer}",
+            {
+                "type": "object",
+                "required": ["foo"],
+                "properties": {"foo": {"type": "integer"}},
+                "additionalProperties": False,
+            },
+        )
+        self.cmp(
+            "{foo: integer}",
+            {
+                "type": "object",
+                "required": ["foo"],
+                "properties": {"foo": {"type": "integer"}},
+            },
+        )
+        self.cmp(
+            "{foo?: integer}",
+            {"type": "object", "properties": {"foo": {"type": "integer"}}},
+        )
+        self.cmp(
+            '{"foo"?: integer}',
+            {"type": "object", "properties": {"foo": {"type": "integer"}}},
+        )
+        self.cmp(
+            "{_: integer}",
+            {"type": "object", "additionalProperties": {"type": "integer"}},
+        )
 
     def test_object_card(self):
         pass  # TODO
@@ -104,47 +112,52 @@ class TestJSCN(unittest.TestCase):
 
     def test_object_simple(self):
         integer = {"type": "integer"}
-        self.cmp("[only integer]",
-                 {"type": "array",
-                  "items": [integer],
-                  "additionalItems": False})
-        self.cmp("[integer]",
-                 {"type": "array",
-                  "items": [integer]})
-        self.cmp("[integer*]",
-                 {"type": "array",
-                  "items": integer}) # List-notation rather than tuple notation
-        self.cmp("[integer+]",  # Maybe encoded either that way or with a cardinal
-                 {"type": "array",
-                  "items": [integer],
-                  "additionalItems": integer})
+        self.cmp(
+            "[only integer]",
+            {"type": "array", "items": [integer], "additionalItems": False},
+        )
+        self.cmp("[integer]", {"type": "array", "items": [integer]})
+        self.cmp(
+            "[integer*]", {"type": "array", "items": integer}
+        )  # List-notation rather than tuple notation
+        self.cmp(
+            "[integer+]",  # Maybe encoded either that way or with a cardinal
+            {"type": "array", "items": [integer], "additionalItems": integer},
+        )
 
     def test_array_card(self):
         pass  # TODO
 
     def test_where(self):
         s = '{only <id>: <byte>} where id = r"[a-z]+" and byte = integer{0,0xFF}'
-        self.cmp(s, {
-            'additionalProperties': {'$ref': '#/definitions/byte'},
-            'definitions': {
-                'byte': {'maximum': 255, 'minimum': 0, 'type': 'integer'},
-                'id': {'pattern': '[a-z]+', 'type': 'string'}},
-            'propertyNames': {'$ref': '#/definitions/id'},
-            'type': 'object'
-        })
+        self.cmp(
+            s,
+            {
+                "additionalProperties": {"$ref": "#/definitions/byte"},
+                "definitions": {
+                    "byte": {"maximum": 255, "minimum": 0, "type": "integer"},
+                    "id": {"pattern": "[a-z]+", "type": "string"},
+                },
+                "propertyNames": {"$ref": "#/definitions/id"},
+                "type": "object",
+            },
+        )
 
     def test_x0(self):
-        Schema(r"""{
+        Schema(
+            r"""{
             kind: `"aircraft"`,
             mission: string
         } | {
             kind: `"mission"`,
             name: string,
             fleet: {only <id>: string}
-        } where id = r"[a-z]+" """).to_jsonschema()
+        } where id = r"[a-z]+" """
+        ).to_jsonschema()
 
     def test_x1(self):
-        Schema("""
+        Schema(
+            """
         { instance: <plid>,
           ground: <plid>,
           mission: <plid>,
@@ -155,70 +168,76 @@ class TestJSCN(unittest.TestCase):
           color?: string,
           status?: `"online"` | `"offline"`
         }
-        """).to_jsonschema()
+        """
+        ).to_jsonschema()
 
     def test_prune(self):
-        s = Schema("""
+        s = Schema(
+            """
         {prop: <used_1>}
         where used_1 = [<used_2>+]
         and unused_1 = [<unused_2>+]
         and used_2 = integer
         and unused_2 = string
-        """)
+        """
+        )
         self.assertSetEqual(
-            set(s.jsonschema['definitions'].keys()),
-            {'used_1', 'used_2'}
+            set(s.jsonschema["definitions"].keys()), {"used_1", "used_2"}
         )
 
     def test_combine_1(self):
         s = Schema("""{prop: <used_1>}""")
-        d = Definitions("""
+        d = Definitions(
+            """
         used_1 = [<used_2>+]
         and unused_1 = [<unused_2>+]
         and used_2 = integer
         and unused_2 = string
-        """)
+        """
+        )
         s |= d
         self.assertSetEqual(
-            set(s.jsonschema['definitions'].keys()),
-            {'used_1', 'used_2'}
+            set(s.jsonschema["definitions"].keys()), {"used_1", "used_2"}
         )
 
     def test_combine_2(self):
-        s = Schema("{prop: <used_1>}") | \
-            Definitions("used_1 = [<used_2>+]") | \
-            Definitions("unused_1 = [<unused_2>+]") | \
-            Definitions("used_2 = integer") | \
-            Definitions("unused_2 = string")
+        s = (
+            Schema("{prop: <used_1>}")
+            | Definitions("used_1 = [<used_2>+]")
+            | Definitions("unused_1 = [<unused_2>+]")
+            | Definitions("used_2 = integer")
+            | Definitions("unused_2 = string")
+        )
         self.assertSetEqual(
-            set(s.jsonschema['definitions'].keys()),
-            {'used_1', 'used_2'}
+            set(s.jsonschema["definitions"].keys()), {"used_1", "used_2"}
         )
 
     def test_combine_3(self):
         """combine defs together before adding the result to the schema."""
         s = Schema("{prop: <used_1>}") | (
-            Definitions("used_1 = [<used_2>+]") |
-            Definitions("unused_1 = [<unused_2>+]") |
-            Definitions("used_2 = integer") |
-            Definitions("unused_2 = string"))
+            Definitions("used_1 = [<used_2>+]")
+            | Definitions("unused_1 = [<unused_2>+]")
+            | Definitions("used_2 = integer")
+            | Definitions("unused_2 = string")
+        )
         self.assertSetEqual(
-            set(s.jsonschema['definitions'].keys()),
-            {'used_1', 'used_2'}
+            set(s.jsonschema["definitions"].keys()), {"used_1", "used_2"}
         )
 
     def test_combine_schemas(self):
-        self.cmp('{foo?: integer} & {bar?: string}',
-                 {'allOf': [
-                     {'properties': {'foo': {'type': 'integer'}},
-                      'type': 'object'},
-                     {'properties': {'bar': {'type': 'string'}},
-                      'type': 'object'}]})
-
+        self.cmp(
+            "{foo?: integer} & {bar?: string}",
+            {
+                "allOf": [
+                    {"properties": {"foo": {"type": "integer"}}, "type": "object"},
+                    {"properties": {"bar": {"type": "string"}}, "type": "object"},
+                ]
+            },
+        )
 
     def test_missing_def(self):
         with self.assertRaisesRegex(ValueError, "Missing definition"):
-            Schema('{foo: <bar>}').to_jsonschema()
+            Schema("{foo: <bar>}").to_jsonschema()
 
     def test_validate(self):
         s = Schema("{only x: integer}")
@@ -229,29 +248,30 @@ class TestJSCN(unittest.TestCase):
         with self.assertRaises(jsonschema.ValidationError):
             s.validate({"x": 1, "y": 2})
 
-
     def test_def_conflict(self):
         with self.assertRaisesRegex(ValueError, "conflict"):
             Definitions("x = integer") | Definitions("x = string")
 
-
     def test_toplevel_ref(self):
-        self.cmp('<x> where x=integer',
-                 {"$ref": "#/definitions/x",
-                  "definitions": {"x": {"type": "integer"}}})
+        self.cmp(
+            "<x> where x=integer",
+            {"$ref": "#/definitions/x", "definitions": {"x": {"type": "integer"}}},
+        )
         s = Schema("<x>")
         d = Definitions("x=integer")
-        self.cmp(s|d,
-                 {"$ref": "#/definitions/x",
-                  "definitions": {"x": {"type": "integer"}}})
+        self.cmp(
+            s | d,
+            {"$ref": "#/definitions/x", "definitions": {"x": {"type": "integer"}}},
+        )
 
     def test_indirect_ref(self):
-        self.cmp('<A> where A = <B> and B = `"C"`',
-                 {"$ref": "#/definitions/A",
-                  "definitions": {
-                      "A": {"$ref": "#/definitions/B"},
-                      "B": {"const": "C"}}})
-
+        self.cmp(
+            '<A> where A = <B> and B = `"C"`',
+            {
+                "$ref": "#/definitions/A",
+                "definitions": {"A": {"$ref": "#/definitions/B"}, "B": {"const": "C"}},
+            },
+        )
 
     def test_cond_1(self):
         self.cmp(
@@ -267,48 +287,53 @@ class TestJSCN(unittest.TestCase):
                 "if": {
                     "type": "object",
                     "required": ["country"],
-                    "properties": {"country": {"const": "USA"}}
+                    "properties": {"country": {"const": "USA"}},
                 },
                 "then": {
                     "type": "object",
                     "required": ["code"],
-                    "properties": {"code": {"$ref": "#/definitions/us_postcode"}}
+                    "properties": {"code": {"$ref": "#/definitions/us_postcode"}},
                 },
                 "else": {
                     "if": {
                         "type": "object",
                         "required": ["country"],
-                        "properties": {"country": {"const": "Canada"}}
+                        "properties": {"country": {"const": "Canada"}},
                     },
                     "then": {
                         "type": "object",
                         "required": ["code"],
-                        "properties": {"code": {"$ref": "#/definitions/ca_postcode"}}
+                        "properties": {"code": {"$ref": "#/definitions/ca_postcode"}},
                     },
                     "else": {
                         "if": {
                             "type": "object",
                             "required": ["country"],
-                            "properties": {"country": {"const": "NL"}}
+                            "properties": {"country": {"const": "NL"}},
                         },
                         "then": {
                             "type": "object",
                             "required": ["code"],
-                            "properties": {"code": {"$ref": "#/definitions/nl_postcode"}}
+                            "properties": {
+                                "code": {"$ref": "#/definitions/nl_postcode"}
+                            },
                         },
                         "else": {
                             "type": "object",
                             "required": ["code"],
-                            "properties": {"code": {"type": "string"}}
-                        }
-                    }
+                            "properties": {"code": {"type": "string"}},
+                        },
+                    },
                 },
                 "definitions": {
                     "us_postcode": {"type": "string", "pattern": r"\d{5}(-\d{4})?"},
-                    "ca_postcode": {"type": "string", "pattern": r"[A-Z]\d[A-Z] \d[A-Z]\d"},
-                    "nl_postcode": {"type": "string", "pattern": r"[0-9]{4} [A-Z]{2}"}
+                    "ca_postcode": {
+                        "type": "string",
+                        "pattern": r"[A-Z]\d[A-Z] \d[A-Z]\d",
+                    },
+                    "nl_postcode": {"type": "string", "pattern": r"[0-9]{4} [A-Z]{2}"},
                 },
-            }
+            },
         )
 
     def test_cond_2(self):
@@ -321,22 +346,22 @@ class TestJSCN(unittest.TestCase):
                 "if": {
                     "type": "object",
                     "required": ["country"],
-                    "properties": {"country": {"const": "USA"}}
+                    "properties": {"country": {"const": "USA"}},
                 },
                 "then": {
                     "type": "object",
                     "required": ["code"],
-                    "properties": {"code": {"$ref": "#/definitions/us_postcode"}}
+                    "properties": {"code": {"$ref": "#/definitions/us_postcode"}},
                 },
                 "else": {
                     "type": "object",
                     "required": ["code"],
-                    "properties": {"code": {"type": "string"}}
+                    "properties": {"code": {"type": "string"}},
                 },
                 "definitions": {
                     "us_postcode": {"type": "string", "pattern": r"\d{5}(-\d{4})?"}
                 },
-            }
+            },
         )
 
     def test_cond_3(self):
@@ -348,24 +373,24 @@ class TestJSCN(unittest.TestCase):
                 "if": {
                     "type": "object",
                     "required": ["country"],
-                    "properties": {"country": {"const": "USA"}}
+                    "properties": {"country": {"const": "USA"}},
                 },
                 "then": {
                     "type": "object",
                     "required": ["code"],
-                    "properties": {"code": {"$ref": "#/definitions/us_postcode"}}
+                    "properties": {"code": {"$ref": "#/definitions/us_postcode"}},
                 },
                 "definitions": {
                     "us_postcode": {"type": "string", "pattern": r"\d{5}(-\d{4})?"}
                 },
-            }
+            },
         )
 
     def test_capitalized_keywords(self):
         Schema('{ONLY <foo>: <bar>} WHERE foo = r"^[0-9]+$" AnD bar= r"^[a-z]+$"')
-        Schema('[UNIQUE integer+]')
+        Schema("[UNIQUE integer+]")
         with self.assertRaisesRegex(ValueError, "Missing definition"):
-            Schema('{x: <foo>} WHERE FOO=integer').to_jsonschema()
+            Schema("{x: <foo>} WHERE FOO=integer").to_jsonschema()
 
     def str_check(self, src: str):
         s = Schema(src)
@@ -381,39 +406,42 @@ class TestJSCN(unittest.TestCase):
         self.str_check("integer{1, 23}")
 
     def test_str_object(self):
-        self.str_check('{}')
+        self.str_check("{}")
         self.str_check('{only r"a-z"}')
         self.str_check('{only r"a-z": integer}')
         self.str_check('{only r"a-z", foo: string}')
-        self.str_check('{foo: string}')
+        self.str_check("{foo: string}")
         self.str_check('{"foo!": string}')
         self.str_check(r'{"a\"b": string}')
 
     def test_str_array(self):
-        self.str_check('[]')
-        self.str_check('[only boolean]')
-        self.str_check('[boolean*]')
-        self.str_check('[only unique boolean]')
-        self.str_check('[only boolean, integer]')
-        self.str_check('[only boolean, integer, integer]')
+        self.str_check("[]")
+        self.str_check("[only boolean]")
+        self.str_check("[boolean*]")
+        self.str_check("[only unique boolean]")
+        self.str_check("[only boolean, integer]")
+        self.str_check("[only boolean, integer, integer]")
 
     def test_str_schema(self):
-        self.str_check('<x> where x=`1`')
-        self.str_check('<x>|<y> where x=`1` and y=`2`')
+        self.str_check("<x> where x=`1`")
+        self.str_check("<x>|<y> where x=`1` and y=`2`")
 
     def test_str_str(self):
-        self.str_check('string')
+        self.str_check("string")
         self.str_check('r"123"')
         self.str_check('f"123"')
 
     def test_wildcard_props(self):
-        self.cmp('{only x: string, y?: _}', {
-            "type": "object",
-            "required": ["x"],
-            "properties": {"x": {"type": "string"}, "y": True},
-            "additionalProperties": False
-        })
+        self.cmp(
+            "{only x: string, y?: _}",
+            {
+                "type": "object",
+                "required": ["x"],
+                "properties": {"x": {"type": "string"}, "y": True},
+                "additionalProperties": False,
+            },
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

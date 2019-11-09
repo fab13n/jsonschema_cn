@@ -9,8 +9,8 @@ __version__ = "0.14"
 
 
 def Schema(source: str, verbose=False) -> tree.Schema:
-    return parse('schema', source)
+    return parse("schema", source)
 
 
 def Definitions(source: str, verbose=False) -> tree.Definitions:
-    return parse('definitions', source)
+    return parse("definitions", source)

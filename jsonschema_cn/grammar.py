@@ -113,12 +113,16 @@ meaninglessness = ~r"\s+" / comment
 comment = ~r"#[^\r\n]*"
 """
 
+
 def parse_keywords(src):
     """Replace occurences of KEYWORD("...") by a regex allowing all capitalizations
     of the keyword between quotes."""
+
     def f(m):
         return '~"' + "".join(f"[{x}{x.upper()}]" for x in m[1]) + '"'
+
     r = re.compile(r'KEYWORD\("([a-z]+)"\)')
     return r.sub(f, src)
+
 
 grammar = Grammar(parse_keywords(src))
