@@ -14,7 +14,9 @@ class TestJSCN(unittest.TestCase):
             sch2 = Schema(src).jsonschema
         elif isinstance(src, T.Schema):
             sch2 = src.jsonschema
-        del sch2['$schema']
+        deleted_keys = ["$comment", "$schema"]
+        for k in deleted_keys:
+            del sch2[k]
         self.assertDictEqual(sch2, sch)
 
     def test_simple(self):
@@ -382,8 +384,10 @@ class TestJSCN(unittest.TestCase):
         self.str_check('{}')
         self.str_check('{only r"a-z"}')
         self.str_check('{only r"a-z": integer}')
-        self.str_check('{only r"a-z", "foo": string}')
-        self.str_check('{"foo": string}')
+        self.str_check('{only r"a-z", foo: string}')
+        self.str_check('{foo: string}')
+        self.str_check('{"foo!": string}')
+        self.str_check(r'{"a\"b": string}')
 
     def test_str_array(self):
         self.str_check('[]')

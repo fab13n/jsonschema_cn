@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import NamedTuple, Optional, Set, Tuple
 import json
 import jsonschema
+import re
 
 
 class Type(ABC):
@@ -67,7 +68,13 @@ class Schema(Type):
                     self._prune_definitions(r)
             if check_definitions:
                 self._check_definitions(r)
-            r["$schema"] = "http://json-schema.org/draft-07/schema#"
+            # Recreate the dict to change keys order
+            r2 = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "$comment": str(self)
+            }
+            r2.update(r)
+            r = r2
         return r
 
     def _check_definitions(self, schema):
@@ -384,12 +391,16 @@ class Object(Type):
         else:
             only = None
         if self.properties:
-            def f(item):
+            def needs_quotes(name):
+                return name in ('only', 'unique') or not re.match(r"^\w+$", name)
+            def pair_str(item):
                 (name, opt, t) = item
                 opt = "?" if opt else ""
+                if needs_quotes(name):
+                    name = json.dumps(name)
                 t = "_" if t is None else t.__str__()
-                return f'"{name}"{opt}: {t}'
-            properties = ", ".join(f(item) for item in self.properties)
+                return f'{name}{opt}: {t}'
+            properties = ", ".join(pair_str(item) for item in self.properties)
         else:
             properties = None
         if only is not None and properties is not None:
