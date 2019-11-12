@@ -8,3 +8,4 @@ dist
 venvpy36
 activate
 .credentials
+htmlcov
