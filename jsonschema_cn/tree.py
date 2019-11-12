@@ -417,8 +417,10 @@ class Object(Type):
             only = f"only {self.additional_property_names}: {self.additional_property_types}"
         elif self.additional_property_names:
             only = f"only {self.additional_property_names}"
-        elif self.additional_property_types:
+        elif self.additional_property_types is True:
             only = f"only _: {self.additional_property_types}"
+        elif self.additional_property_types is False:
+            only = f"only"
         else:
             only = None
         if self.properties:
@@ -437,14 +439,15 @@ class Object(Type):
             properties = ", ".join(pair_str(item) for item in self.properties)
         else:
             properties = None
-        if only is not None and properties is not None:
-            r = only + ", " + properties
-        elif only is not None:
-            r = only
+
+        if only == 'only':
+            r = "only " + properties if properties else "only"
+        elif only is None:
+            r = properties or ''
         elif properties is not None:
-            r = properties
+            r = only + ", " + properties
         else:
-            r = " "
+            r = only
         r = "{" + r + "}"
         (card_min, card_max) = self.cardinal
         if card_min is not None and card_max is not None:

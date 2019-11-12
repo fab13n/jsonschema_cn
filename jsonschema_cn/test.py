@@ -407,9 +407,11 @@ class TestJSCN(unittest.TestCase):
 
     def test_str_object(self):
         self.str_check("{}")
-        self.str_check('{only r"a-z"}')
-        self.str_check('{only r"a-z": integer}')
-        self.str_check('{only r"a-z", foo: string}')
+        self.str_check("{only}")
+        self.str_check("{only foo: string}")
+        self.str_check('{only r"[a-z]+"}')
+        self.str_check('{only r"[a-z]+": integer}')
+        self.str_check('{only r"[a-z]+", foo: string}')
         self.str_check("{foo: string}")
         self.str_check('{"foo!": string}')
         self.str_check(r'{"a\"b": string}')
