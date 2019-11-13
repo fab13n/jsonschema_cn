@@ -385,7 +385,7 @@ class Operator(Type):
         return {self.operator: [v.jsonschema for v in self.values]}
 
     def __str__(self):
-        op = {"oneOf": "|", "allOf": "&"}[self.operator]
+        op = {"anyOf": "|", "oneOf": "|", "allOf": "&"}[self.operator]
         return op.join(v.__str__() for v in self.values)
 
     def visit(self, visitor):
@@ -429,17 +429,6 @@ class Enum(Type):
 
     def __str__(self):
         return "|".join(f"`v`" for v in self.values)
-
-    def visit(self, visitor):
-        s = self.visit_down(self)
-        if s is not self:
-            return s
-        visited = [c.visit(visitor) for c in self.values]
-        if any(a is not b for a, b in zip(self.values, visited)):
-            s = self.__class__(values=visited)
-        else:
-            s = self
-        return s.visit_up(visitor)
 
 
 class Reference(Type):
