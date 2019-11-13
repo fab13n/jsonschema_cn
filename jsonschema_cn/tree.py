@@ -56,6 +56,35 @@ class Type(ABC):
                 return False
         return True
 
+    def visit(self, visitor):
+        x = self.visit_down(visitor)
+        return self.visit_up(visitor)
+
+    def visit_down(self, visitor):
+        if visitor is None:
+            return self
+        else:
+            name = f"visit_{self.__class__.__name__}_down"
+            method = getattr(visitor, name, None)
+            if method is not None:
+                r = method(self)
+            return r if r is not None else self
+
+    def visit_up(self, visitor):
+        if visitor is None:
+            return self
+        else:
+            names = [
+                f"visit_{self.__class__.__name__}_up",
+                f"visit_{self.__class__.__name__}",
+                "visit",
+            ]
+            for name in names:
+                method = getattr(visitor, name, None)
+                if method is not None:
+                    return method(self)
+            return self
+
 
 class Schema(Type):
 
@@ -175,6 +204,18 @@ class Schema(Type):
     def __repr__(self):
         return f"Schema('{self}')"
 
+    def visit(self, visitor):
+        s = super().visit_down(visitor)
+        if s is not self:
+            return s
+        v = self.value.visit(visitor)
+        d = self.definitions.visit(visitor)
+        if v is self.value and d is self.definitions:
+            s = self
+        else:
+            s = self.__class__(value=v, definitions=d)
+        return s.visit_up(visitor)
+
 
 class Definitions(Type):
 
@@ -207,8 +248,8 @@ class Definitions(Type):
     def from_dict(d):
         definitions = Definitions(values={})
         for name, schema in d.items():
-            if isinstance(schema, str):
-                from .visitor import parse
+            if isinstance(schema, str):  # Convert src strings -> Schema
+                from .peg_visitor import parse
 
                 schema = parse("schema", schema)
             definitions |= schema.definitions
@@ -220,6 +261,17 @@ class Definitions(Type):
             return "where " + " and ".join(f"{k} = {v}" for k, v in self.values.items())
         else:
             return "<empty definitions>"
+
+    def visit(self, visitor):
+        s = super().visit_down(visitor)
+        if s is not self:
+            return s
+        visited = {name: type.visit(down, up) for name, type in self.values.items()}
+        if any(a is not b for a, b in zip(visited.values(), self.values.values())):
+            s = self.__class__(values=visited)
+        else:
+            s = self
+        return s.visit_up(visitor)
 
 
 class Integer(Type):
@@ -325,6 +377,17 @@ class Operator(Type):
         op = {"oneOf": "|", "allOf": "&"}[self.operator]
         return op.join(v.__str__() for v in self.values)
 
+    def visit(self, visitor):
+        s = self.visit_down(visitor)
+        if s is not self:
+            return s
+        visited = [c.visit(visitor) for c in self.values()]
+        if any(a is not b for a, b in zip(visited, self.values)):
+            s = self.__class__(operator=self.operator, values=visited)
+        else:
+            s = self
+        return s.visit_up(visitor)
+
 
 class Not(Type):
     CONSTRUCTOR_KWARGS = ("value",)
@@ -335,6 +398,17 @@ class Not(Type):
     def __str__(self):
         return f"not {self.value}"
 
+    def visit(self, visitor):
+        s = self.visit_down(visitor)
+        if s is not self:
+            return s
+        v = self.value.visit(visitor)
+        if v is self.value:
+            s = self
+        else:
+            s = self.__class__(value=v)
+        return s.visit_up(visitor)
+
 
 class Enum(Type):
     CONSTRUCTOR_KWARGS = ("values",)
@@ -344,6 +418,17 @@ class Enum(Type):
 
     def __str__(self):
         return "|".join(f"`v`" for v in self.values)
+
+    def visit(self, visitor):
+        s = self.visit_down(self)
+        if s is not self:
+            return s
+        visited = [c.visit(visitor) for c in self.values]
+        if any(a is not b for a, b in zip(self.values, visited)):
+            s = self.__class__(values=visited)
+        else:
+            s = self
+        return s.visit_up(visitor)
 
 
 class Reference(Type):
@@ -440,10 +525,10 @@ class Object(Type):
         else:
             properties = None
 
-        if only == 'only':
+        if only == "only":
             r = "only " + properties if properties else "only"
         elif only is None:
-            r = properties or ''
+            r = properties or ""
         elif properties is not None:
             r = only + ", " + properties
         else:
@@ -457,6 +542,31 @@ class Object(Type):
         elif card_max is not None:
             r += "{_, " + str(card_max) + "}"
         return r
+
+    def visit(self, visitor):
+        s = self.visit_down(visitor)
+        if s is not self:
+            return s
+        visited_props = [
+            ObjectProperty(p[0], p[1], p[2].visit(visitor)) for p in self.properties
+        ]
+        if isinstance(self.additional_property_types, Type):
+            addprops = self.additional_properties.visit(visitor)
+        else:
+            addprops = self.addditional_property_types
+
+        if addprops is not self.additional_property_types or any(
+            a[2] is not b[2] for a, b in zip(visited_props, self.properties)
+        ):
+            s = self.__class__(
+                properties=visited_props,
+                additional_property_types=addprops,
+                additional_property_names=self.additional_property_names,
+                cardinal=self.cardinal,
+            )
+        else:
+            s = self
+        return s.visit_up(visitor)
 
 
 class Array(Type):
@@ -533,6 +643,28 @@ class Array(Type):
             r += "{_, " + str(card_max) + "}"
         return r
 
+    def visit(self, visitor):
+        s = self.visit_down(visitor)
+        if s is not self:
+            return s
+        visited_items = [c.visit(visitor) for c in self.values()]
+        if isinstance(self.additional_items, Type):
+            additems = self.additional_items.visit(visitor)
+        else:
+            additems = self.additional_items
+        if additems is not self.additional_items or any(
+            a is not b for a, b in zip(visited_items, self.items)
+        ):
+            s = self.__class__(
+                items=visited_items,
+                additional_items=additems,
+                unique=self.unique,
+                cardinal=self.cardinal,
+            )
+        else:
+            s = self
+        return s.visit_up(visitor)
+
 
 class Conditional(Type):
 
@@ -549,3 +681,23 @@ class Conditional(Type):
         if self.else_term is not None:
             r += f" {self.else_term}"
         return r
+
+    def visit(self, visitor):
+        s = self.visit_down(visitor)
+        if s is not self:
+            return s
+        if_t = self.if_term.visit(visitor)
+        then_t = self.then_term.visit(visitor)
+        if self.else_term is not None:
+            else_t = self.else_term.visit(visitor)
+        else:
+            else_t = None
+        if (
+            if_t is not self.if_term
+            or then_t is not self.then_term
+            or else_t is not self.else_term
+        ):
+            s = self.__class__(if_term=if_t, then_term=then_t, else_term=else_t)
+        else:
+            s = self
+        return s.visit_up(visitor)

@@ -1,5 +1,5 @@
 from .grammar import grammar
-from .visitor import parse
+from .peg_visitor import parse
 from .tree import Type
 from .unspace import UnspaceVisitor
 from typing import Any
