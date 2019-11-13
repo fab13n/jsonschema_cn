@@ -3,6 +3,11 @@ from typing import NamedTuple, Optional, Set, Tuple
 import json
 import jsonschema
 import re
+import logging
+
+
+# Logger for Schema visitors
+vlog = logging.getLogger("jscn-visitor")
 
 
 class Type(ABC):
@@ -58,19 +63,24 @@ class Type(ABC):
 
     def visit(self, visitor):
         x = self.visit_down(visitor)
-        return self.visit_up(visitor)
+        if x is self:
+            return x.visit_up(visitor)
+        else:
+            return x
 
     def visit_down(self, visitor):
-        if visitor is None:
-            return self
+        vlog.debug("down %s", self)
+        name = f"visit_{self.__class__.__name__}_down"
+        method = getattr(visitor, name, None)
+        if method is not None:
+            vlog.debug("match down %s", name)
+            r = method(self)
         else:
-            name = f"visit_{self.__class__.__name__}_down"
-            method = getattr(visitor, name, None)
-            if method is not None:
-                r = method(self)
-            return r if r is not None else self
+            r = None
+        return r if r is not None else self
 
     def visit_up(self, visitor):
+        vlog.debug("up %s", self)
         if visitor is None:
             return self
         else:
@@ -82,6 +92,7 @@ class Type(ABC):
             for name in names:
                 method = getattr(visitor, name, None)
                 if method is not None:
+                    vlog.debug("match up %s", name)
                     return method(self)
             return self
 
@@ -266,7 +277,7 @@ class Definitions(Type):
         s = super().visit_down(visitor)
         if s is not self:
             return s
-        visited = {name: type.visit(down, up) for name, type in self.values.items()}
+        visited = {name: type.visit(visitor) for name, type in self.values.items()}
         if any(a is not b for a, b in zip(visited.values(), self.values.values())):
             s = self.__class__(values=visited)
         else:
@@ -553,7 +564,7 @@ class Object(Type):
         if isinstance(self.additional_property_types, Type):
             addprops = self.additional_properties.visit(visitor)
         else:
-            addprops = self.addditional_property_types
+            addprops = self.additional_property_types
 
         if addprops is not self.additional_property_types or any(
             a[2] is not b[2] for a, b in zip(visited_props, self.properties)

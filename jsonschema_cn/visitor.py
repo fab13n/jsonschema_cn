@@ -1,1 +1,0 @@
-"""Visitor for JSCN Schemas."""
