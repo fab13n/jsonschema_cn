@@ -7,7 +7,7 @@ import logging
 
 
 # Logger for Schema visitors
-vlog = logging.getLogger("jscn-visitor")
+vlog = logging.getLogger("jsonschema_cn:visitor")
 
 
 class Type(ABC):
@@ -647,7 +647,7 @@ class Array(Type):
         s = self.visit_down(visitor)
         if s is not self:
             return s
-        visited_items = [c.visit(visitor) for c in self.values()]
+        visited_items = [c.visit(visitor) for c in self.items]
         if isinstance(self.additional_items, Type):
             additems = self.additional_items.visit(visitor)
         else:
