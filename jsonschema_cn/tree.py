@@ -428,7 +428,7 @@ class Enum(Type):
         return {"enum": list(self.values)}
 
     def __str__(self):
-        return "|".join(f"`v`" for v in self.values)
+        return "|".join(f"`{json.dumps(v)}`" for v in self.values)
 
 
 class Reference(Type):
