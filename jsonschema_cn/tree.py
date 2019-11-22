@@ -392,7 +392,7 @@ class Operator(Type):
         s = self.visit_down(visitor)
         if s is not self:
             return s
-        visited = [c.visit(visitor) for c in self.values()]
+        visited = [c.visit(visitor) for c in self.values]
         if any(a is not b for a, b in zip(visited, self.values)):
             s = self.__class__(operator=self.operator, values=visited)
         else:
