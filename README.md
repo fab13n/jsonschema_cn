@@ -18,11 +18,11 @@ Litteral JSON types are accessible as keywords: `boolean`, `string`,
 `integer`, `number`, `null`.
 
 Regular expression strings are represented by `r`-prefixed litteral
-strings, similar to Python litterals: `r"[0-9]+"` converts into
-`{"type": "string", "pattern": "[0-9]+"}`.
+strings, similar to Python's litterals: `r"^[0-9]+$"` converts into
+`{"type": "string", "pattern": "^[0-9]+$"}`.
 
-Regular expression strings are represented by `f`-prefixed litteral
-strings: `f"uri""` converts into `{"type": "string", "format":
+Predefined formats are represented by `f`-prefixed litteral
+strings: `f"uri"` converts into `{"type": "string", "format":
 "uri"}`.
 
 JSON constants are introduced between back-quotes: `` `123` ``
@@ -34,17 +34,20 @@ Arrays are described between square brackets:
 
 * `[]` describes every possible array, and can also be written `array`.
 * an homogeneous, non-empty array of integers is denoted `[integer+]`
-* an homogeneous array of integers is denoted `[integer*]`
-* an array of two booleans is denoted `[boolean, boolean]`. It can also
-  contain additional items after those two booleans.
-* To prevent items other than those explicitly listed, add an `only`
-  keyword at the beginning of the array: `[only boolean, boolean]`.
+* an homogeneous, possibly empty array of integers is denoted `[integer*]`
+* an array starting with two booleans is denoted `[boolean, boolean]`.
+  It can also contain additional items after those two booleans.
+* To forbid additional items, add an `only`
+  keyword at the beginning of the array: `[only boolean, boolean]` will
+  reject `[true, false, 1]`, whereas `[boolean, boolean]` would have
+  validated it.
 * arrays support cardinal suffix between braces: `[]{7}` is an
   array of 7 elements, `[integer*]{3,8}` is an array of between 3 and
   8 integers (inclusive), `[]{_, 9}` an array of at most 9
   elements, `[string*]{4, _}` an array of at least 4 strings.
 * a uniqueness constraint can be added with the `unique` prefix, as in
-  `[unique integer+]`, which will allow `[1, 2, 3]` but not `[1, 2, 1]`.
+  `[unique integer+]`, which will allow `[1, 2, 3]` but not `[1, 2, 1]`
+  since `1` occurs more than once.
 
 Strings and integers also support cardinal suffixes,
 e.g. `string{16}`, `integer{_, 0xFFFF}`. Integer ranges as well as
@@ -60,27 +63,33 @@ Objects are described between curly braces:
   than `"_"` or `"only"`: it's legal to write `{bar: integer}`.
 * To prevent non-listed property names from being accepted, use a
   prefix `only`, as in `{only "bar": integer}`.
-* non-listed property names can be forced to follow a regex with an
+* property names can be forced to comply with a regex, by an
   `only r"regex"` prefix, which can also be a reference to a
-  definition: `{only r"[a-z]+"}`, `{only <word>, "except_this_one":
-  integer} where word=r"[a-z]"+`.
-* In addition to forcing non-listted property names, one can also
-  force a type constraint on the associated values: `{only <word>:
+  definition: `{only r"^[a-z]+$"}`, or the equivalent
+  `{only <word>} where word=r"^[a-z]$"+`.
+  Beware that according to jsonschema, even explicitly listed
+  property names must comply with the regex, for instance nothing
+  can satisfy the schema `{only r"^[0-9]+$", "except_this": _}`.
+  You can circumvent this limitation in several ways, e.g.
+  `{only r"^([0-9]+|except_this)$"}`, or ``{only <key>} where
+  key = `"except_this"` | r"^[0-9]+$"``.
+* In addition to enforcing a regex on property names, one can also
+  enforce a type constraint on the associated values: `{only <word>:
   integer}`. If no naming constraint is desired, the name can be
-  replace by an underscore wildcard: `{only _: integer}`.
-* To restrict property names without forbidding additional ones, a
-  prefix constraint `only <regex>` can be added, e.g. `{only r"[0-9]+"
-  _: integer}` will only accept integer-to-integer maps. References to
-  definitions are also accepted, as in `{only <int_string>} where
-  int_string = r"[0-9]+"`. Beware that according to JSONSchema,
-  explicitly listed properties must also respect the constraint.  So
-  if you want your properties to include `"default"`, plus optional
-  integers, you should specify ``{only <key>: {}, default: {}} where
-  key = r"^[0-9]+$" | `"default"` ``.
+  replaced by an underscore wildcard: `{only _: integer}`.
 * A special type `forbidden`, equivalent to JSONSchema's `false`, can
   be used to specifically forbid a property name: `{reserved_name?:
   forbidden}`. Notice that the question mark is mandatory: otherwise,
-  it would both expect the property, and accept no value in it.
+  it would both expect the property to exist, and accept no value in it.
+
+Definitions can be used in the schema, and given with a suffix `where 
+name0 = def0 and ... and nameX=defX`. References to definitions are
+put between angles, for instance `{author: <user_name>} where 
+user_name = r"^\w+$". When dumping the schema into actual jsonschema,
+unused definitions are pruned, and missing definitions cause an error.
+Definitions can only occur at top-level, i.e. 
+`{foo: <bar>} where bar=number` is legal, but
+`{foo: (<bar> where bar=number)}` is not.
 
 Types can be combined:
 
@@ -97,11 +106,13 @@ Types can be combined:
   only check the postcode with the regex if the country is `"USA"`.
 * Parentheses can be added to enforce precedences , e.g. `A & (B|C) & D`
 
-A top-level schema may contain definitions. They are listed after the
-main schema, separated by a `where` keyword from it, and separated
-from each other by `and`. References to definitions must appear
-between angle bracket `<...>`. For instance, `{source: <id>, dest:
-<id>} where id = r"[a-z]+"`.
+Combinations can also be performed on Python objects, e.g. the following
+Python expression is OK: `Schema("{foo: number}") | Schema("{bar: number}"),
+and produces a schema equivalent to `Schema("{foo: number}|{bar: number}")`.
+When definitions are merged in Python with `|` or `&`, their definitions
+are merged as needed. If a definition appears on both sides, it must be equal,
+i.e. one can merge `{foo: <n>} where n=number` with `{bar: <n>} where n=number`  
+but not with `{foo: <n>} where n=integer`.
 
 More formally
 -------------
@@ -173,10 +184,6 @@ TODO
 
 Some things that may be added in future versions:
 
-* on objects:
-    * limited support for dependent object fields, e.g.
-      `{"card_number": integer, "billing_address" if "card_number":
-      string, ...}`.
 * on numbers:
     * ranges over floats (reusing cardinal grammar with float
       boundaries)
@@ -190,18 +197,13 @@ Some things that may be added in future versions:
       ranges then.
 * combine string constraints: regex, format, cardinals...  This can
   already be achieved with operator `&`.
-* add a few `"$comment"` fields for non-obvious translations. Use size
-  of notation vs. size of generated schema as a clue, plus the
-  presence of such a somment at a higher level in the tree.
-* try to embedded `#`-comments as `"$comment"`? Gather them for each
-  `or_sequence` and `'\n'`-join them on top?
+* try to embedded `#`-comments as `"$comment"`
 * Implementation:
     * bubble up `?` markers in grammar to the top level.
 * Syntax sugar:
     * optional marker: `foobar?` is equivalent to `foobar|null`.  Not
       sure whether it's worth it, the difference between a missing
-      field and a field holding `null` is most commonly not
-      significant.
+      field and a field holding `null` is most commonly not significant.
     * check that references as `propertyNames` indeed point at string
       types.
     * make keyword case-insensitive?
@@ -214,10 +216,6 @@ Some things that may be added in future versions:
 
 Usage
 -----
-
-From Python:
-
-
 
 ### From command line
 
@@ -245,7 +243,7 @@ From Python:
 
 ### From Python API
 
-Python's `jsonschema_cn` packaga exports two main constructors:
+Python's `jsonschema_cn` package exports two main constructors:
 
 * `Schema()`, which compiles a source string into a schema object;
 * `Definitions()`, which compiles a source string (a sequence of
