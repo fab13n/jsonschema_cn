@@ -21,6 +21,22 @@ def main():
         help="Verbose output",
     )
     parser.add_argument(
+        "-r",
+        "--reduce",
+        action="store_const",
+        const=True,
+        default=False,
+        help="Reduce variable references",
+    )
+    parser.add_argument(
+        "-f",
+        "--format",
+        action="store_const",
+        const=True,
+        default=False,
+        help="Reformat instead of compiling",
+    )
+    parser.add_argument(
         "filename",
         nargs="?",
         default="-",
@@ -37,7 +53,6 @@ def main():
 
     if args.version:
         from . import __version__
-
         print(f"JSON Schema compact notation v{__version__}.")
         exit(0)
 
@@ -46,14 +61,21 @@ def main():
 
     source = input.read()
     schema = parse("schema", source, verbose=args.verbose)
-    try:
-        # TODO Try and guess TTY width
-        import jsview
 
-        result = jsview.dumps(schema.jsonschema)
-    except ModuleNotFoundError:
-        # Raw printing if jsview isn't installed
-        result = json.dumps(schema.jsonschema)
+    if args.reduce:
+        from .beta import reduce as reduce
+        schema = reduce(schema)
+
+    if args.format:
+        result = str(schema)
+    else:
+        try:
+            # TODO Try and guess TTY width
+            import jsview
+            result = jsview.dumps(schema.jsonschema)
+        except ModuleNotFoundError:
+            # Raw printing if jsview isn't installed
+            result = json.dumps(schema.jsonschema)
 
     output.write(result + "\n")
     output.flush()

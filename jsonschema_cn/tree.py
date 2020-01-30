@@ -102,13 +102,13 @@ class Schema(Type):
 
     CONSTRUCTOR_KWARGS = ("value", "definitions")
 
-    def to_jsonschema(self, check_definitions=True, prune_definitions=True):
+    def to_jsonschema(self, check_definitions=True, prune=True):
         r = self.value.jsonschema
         if isinstance(r, dict):  # Could also be `False`
             if self.definitions.values:
                 r["definitions"] = self.definitions.jsonschema
-                if prune_definitions:
-                    self._prune_definitions(r)
+                if prune:
+                    self._prune(r)
             if check_definitions:
                 self._check_definitions(r)
             # Recreate the dict to change keys order
@@ -127,10 +127,12 @@ class Schema(Type):
             if k not in self.definitions.values.keys():
                 raise ValueError(f"Missing definition for {k}")
 
-    def _prune_definitions(self, schema):
-        """Remove unused definitions. May iterate more than once, because
+    @classmethod
+    def _prune(cls, schema: dict):
+        """Remove unused definitions on a jsonschema (not a CN schema).
+        May iterate more than once, because
         some references may be used in other definitions."""
-        occurring_references = self._get_dict_references(schema)
+        occurring_references = cls._get_dict_references(schema)
         eliminated_references = False
         while True:
             for k in list(schema["definitions"].keys()):
@@ -142,13 +144,14 @@ class Schema(Type):
                 # Some unused references have been removed.
                 # By removing their definitions, maybe some other
                 # references became unused => try to prune again.
-                occurring_references = self._get_dict_references(schema)
+                occurring_references = cls._get_dict_references(schema)
                 eliminated_references = False
             else:
                 # Reached a fix-point, nothing left to eliminate
                 return
 
-    def _get_dict_references(self, x) -> Set[str]:
+    @classmethod
+    def _get_dict_references(cls, x) -> Set[str]:
         """Extract every definition usage from a compiled jsonschema,
         so that it can be checked that they are all defined."""
         if isinstance(x, dict):
@@ -159,10 +162,10 @@ class Schema(Type):
                 r = set()
             for k, v in x.items():
                 if k != "$ref":
-                    r |= self._get_dict_references(v)
+                    r |= cls._get_dict_references(v)
             return r
         elif isinstance(x, list):
-            return set.union(*(self._get_dict_references(y) for y in x))
+            return set.union(*(cls._get_dict_references(y) for y in x))
         else:
             return set()
 
@@ -567,18 +570,22 @@ class Object(Type):
         visited_props = [
             ObjectProperty(p[0], p[1], p[2].visit(visitor)) for p in self.properties
         ]
-        if isinstance(self.additional_property_types, Type):
-            addprops = self.additional_properties.visit(visitor)
-        else:
-            addprops = self.additional_property_types
 
-        if addprops is not self.additional_property_types or any(
-            a[2] is not b[2] for a, b in zip(visited_props, self.properties)
-        ):
+        apn = self.additional_property_names
+        if isinstance(apn, Type):
+            apn = apn.visit(visitor)
+
+        apt = self.additional_property_types
+        if isinstance(apt, Type):
+            apt = apt.visit(visitor)
+
+        if apt is not self.additional_property_types or \
+           apn is not self.additional_property_names or \
+           any(a[2] is not b[2] for a, b in zip(visited_props, self.properties)):
             s = self.__class__(
                 properties=visited_props,
-                additional_property_types=addprops,
-                additional_property_names=self.additional_property_names,
+                additional_property_names=apn,
+                additional_property_types=apt,
                 cardinal=self.cardinal,
             )
         else:
