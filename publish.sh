@@ -27,7 +27,11 @@ fi
 sed -i "s/^__version__\\s*=.*/__version__ = \"$VERSION\"/" jsonschema_cn/__init__.py
 
 # Commit + tag + push change(s)
-git commit -am "Published version $VERSION"
+if [[ $(git status -s) != "" ]]; then
+    echo "Uncommitted files, please commit and try again"
+    exit 3
+    # git commit -am "Published version $VERSION"
+fi
 git tag -a "v$VERSION" -m "Published version $VERSION"
 git push
 
