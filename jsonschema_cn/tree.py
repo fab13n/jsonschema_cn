@@ -5,6 +5,7 @@ import jsonschema
 import re
 import logging
 
+from .indent import indent
 
 # Logger for Schema visitors
 vlog = logging.getLogger("jsonschema_cn:visitor")
@@ -208,9 +209,9 @@ class Schema(Type):
 
     def __str__(self):
         if self.definitions.values:
-            return f"{self.value} {self.definitions}"
+            return indent(f"{self.value} {self.definitions}")
         else:
-            return self.value.__str__()
+            return indent(self.value.__str__())
 
     def __repr__(self):
         return f"Schema('{self}')"
@@ -269,7 +270,7 @@ class Definitions(Type):
 
     def __str__(self):
         if self.values:
-            return "where " + " and ".join(f"{k} = {v}" for k, v in self.values.items())
+            return "\nwhere " + "\nand ".join(f"{k} = {v}" for k, v in self.values.items())
         else:
             return "<empty definitions>"
 
@@ -340,7 +341,10 @@ class String(Type):
             r = "string"
         (card_min, card_max) = self.cardinal
         if card_min is not None and card_max is not None:
-            r += "{" + str(card_min) + ", " + str(card_max) + "}"
+            if card_min == card_max:
+                r += "{" + str(card_min) + "}"
+            else:
+                r += "{" + str(card_min) + ", " + str(card_max) + "}"
         elif card_min is not None:
             r += "{" + str(card_min) + ", _}"
         elif card_max is not None:
@@ -375,7 +379,11 @@ class Constant(Type):
         return {"const": self.value}
 
     def __str__(self):
-        return f"`{self.value}`"
+        if isinstance(self.value, str):
+            # with double-quotes and escapes but no backticks
+            return json.dumps(self.value)
+        else:
+            return f"`{json.dumps(self.value)}`"
 
 
 class Operator(Type):
@@ -385,7 +393,8 @@ class Operator(Type):
         return {self.operator: [v.jsonschema for v in self.values]}
 
     def __str__(self):
-        op = {"anyOf": "|", "oneOf": "|", "allOf": "&"}[self.operator]
+        # TODO Different operator for oneOf/anyOf
+        op = {"anyOf": " | ", "oneOf": " | ", "allOf": " & "}[self.operator]
         return op.join(v.__str__() for v in self.values)
 
     def visit(self, visitor):
@@ -428,7 +437,9 @@ class Enum(Type):
         return {"enum": list(self.values)}
 
     def __str__(self):
-        return "|".join(f"`{json.dumps(v)}`" for v in self.values)
+        def c2s(v):
+            return json.dumps(v) if isinstance(v, str) else f"`{json.dumps(v)}`"
+        return " | ".join(c2s(v) for v in self.values)
 
 
 class Reference(Type):
@@ -521,22 +532,28 @@ class Object(Type):
                 t = "_" if t is None else t.__str__()
                 return f"{name}{opt}: {t}"
 
-            properties = ", ".join(pair_str(item) for item in self.properties)
+            properties = ",\n".join(pair_str(item) for item in self.properties)
         else:
             properties = None
-
+    
+        multi_lines = len(self.properties) > 1
         if only == "only":
             r = "only " + properties if properties else "only"
         elif only is None:
             r = properties or ""
         elif properties is not None:
-            r = only + ", " + properties
+            r = only + ",\n" + properties
+            multi_lines = True
         else:
             r = only
-        r = "{" + r + "}"
+        
+        r = "{\n" + r + "\n}" if multi_lines else "{" + r + "}"
         (card_min, card_max) = self.cardinal
         if card_min is not None and card_max is not None:
-            r += "{" + str(card_min) + ", " + str(card_max) + "}"
+            if card_min == card_max:
+                r += "{" + str(card_min) + "}"
+            else:
+                r += "{" + str(card_min) + ", " + str(card_max) + "}"
         elif card_min is not None:
             r += "{" + str(card_min) + ", _}"
         elif card_max is not None:
@@ -636,7 +653,10 @@ class Array(Type):
             r = "[ ]"
         (card_min, card_max) = self.cardinal
         if card_min is not None and card_max is not None:
-            r += "{" + str(card_min) + ", " + str(card_max) + "}"
+            if card_min == card_max:
+                r += "{" + str(card_min) + "}"
+            else:
+                r += "{" + str(card_min) + ", " + str(card_max) + "}"
         elif card_min is not None:
             r += "{" + str(card_min) + ", _}"
         elif card_max is not None:

@@ -2,7 +2,7 @@ import sys
 import json
 from argparse import ArgumentParser
 
-from .visitor import parse
+from .peg_visitor import parse
 
 
 def main():
