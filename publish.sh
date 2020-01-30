@@ -16,6 +16,11 @@ if [[ "$VERSION" == "" ]]; then
     exit 1
 fi
 
+if [[ ! -f .credentials ]]; then
+    echo "Missing a .credentials file with LOGIN=xxx and PASSWORD=xxx lines"
+    exit 2
+fi
+
 # Change version in sources
 sed -i "s/^__version__\\s*=.*/__version__ = \"$VERSION\"/" jsonschema_cn/__init__.py
 
