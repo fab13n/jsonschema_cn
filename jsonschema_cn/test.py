@@ -59,12 +59,8 @@ class TestJSCN(unittest.TestCase):
 
     def test_forbidden(self):
         self.assertEqual(Schema("forbidden").jsonschema, False)
-        self.assertDictEqual(
-            Schema("{x: forbidden}").jsonschema, Schema("{x?: forbidden}").jsonschema
-        )
-        self.assertNotEqual(
-            Schema("{x: `1`}").jsonschema, Schema("{x?: `1`}").jsonschema
-        )
+        self.assertDictEqual(Schema("{x: forbidden}").jsonschema, Schema("{x?: forbidden}").jsonschema)
+        self.assertNotEqual(Schema("{x: `1`}").jsonschema, Schema("{x?: `1`}").jsonschema)
 
     def test_object_empty(self):
         obj = {"type": "object"}
@@ -117,9 +113,7 @@ class TestJSCN(unittest.TestCase):
             {"type": "array", "items": [integer], "additionalItems": False},
         )
         self.cmp("[integer]", {"type": "array", "items": [integer]})
-        self.cmp(
-            "[integer*]", {"type": "array", "items": integer}
-        )  # List-notation rather than tuple notation
+        self.cmp("[integer*]", {"type": "array", "items": integer})  # List-notation rather than tuple notation
         self.cmp(
             "[integer+]",  # Maybe encoded either that way or with a cardinal
             {"type": "array", "items": [integer], "additionalItems": integer},
@@ -181,9 +175,7 @@ class TestJSCN(unittest.TestCase):
         and unused_2 = string
         """
         )
-        self.assertSetEqual(
-            set(s.jsonschema["definitions"].keys()), {"used_1", "used_2"}
-        )
+        self.assertSetEqual(set(s.jsonschema["definitions"].keys()), {"used_1", "used_2"})
 
     def test_combine_1(self):
         s = Schema("""{prop: <used_1>}""")
@@ -196,9 +188,7 @@ class TestJSCN(unittest.TestCase):
         """
         )
         s |= d
-        self.assertSetEqual(
-            set(s.jsonschema["definitions"].keys()), {"used_1", "used_2"}
-        )
+        self.assertSetEqual(set(s.jsonschema["definitions"].keys()), {"used_1", "used_2"})
 
     def test_combine_2(self):
         s = (
@@ -208,9 +198,7 @@ class TestJSCN(unittest.TestCase):
             | Definitions("used_2 = integer")
             | Definitions("unused_2 = string")
         )
-        self.assertSetEqual(
-            set(s.jsonschema["definitions"].keys()), {"used_1", "used_2"}
-        )
+        self.assertSetEqual(set(s.jsonschema["definitions"].keys()), {"used_1", "used_2"})
 
     def test_combine_3(self):
         """combine defs together before adding the result to the schema."""
@@ -220,9 +208,7 @@ class TestJSCN(unittest.TestCase):
             | Definitions("used_2 = integer")
             | Definitions("unused_2 = string")
         )
-        self.assertSetEqual(
-            set(s.jsonschema["definitions"].keys()), {"used_1", "used_2"}
-        )
+        self.assertSetEqual(set(s.jsonschema["definitions"].keys()), {"used_1", "used_2"})
 
     def test_combine_schemas(self):
         self.cmp(
@@ -314,9 +300,7 @@ class TestJSCN(unittest.TestCase):
                         "then": {
                             "type": "object",
                             "required": ["code"],
-                            "properties": {
-                                "code": {"$ref": "#/definitions/nl_postcode"}
-                            },
+                            "properties": {"code": {"$ref": "#/definitions/nl_postcode"}},
                         },
                         "else": {
                             "type": "object",
@@ -358,9 +342,7 @@ class TestJSCN(unittest.TestCase):
                     "required": ["code"],
                     "properties": {"code": {"type": "string"}},
                 },
-                "definitions": {
-                    "us_postcode": {"type": "string", "pattern": r"\d{5}(-\d{4})?"}
-                },
+                "definitions": {"us_postcode": {"type": "string", "pattern": r"\d{5}(-\d{4})?"}},
             },
         )
 
@@ -380,9 +362,7 @@ class TestJSCN(unittest.TestCase):
                     "required": ["code"],
                     "properties": {"code": {"$ref": "#/definitions/us_postcode"}},
                 },
-                "definitions": {
-                    "us_postcode": {"type": "string", "pattern": r"\d{5}(-\d{4})?"}
-                },
+                "definitions": {"us_postcode": {"type": "string", "pattern": r"\d{5}(-\d{4})?"}},
             },
         )
 
@@ -432,6 +412,9 @@ class TestJSCN(unittest.TestCase):
         self.str_check("string")
         self.str_check('r"123"')
         self.str_check('f"123"')
+
+    def test_only_wildcard(self):
+        self.cmp("{only _: {}}", {"type": "object", "additionalProperties": {"type": "object"}})
 
     def test_wildcard_props(self):
         self.cmp(

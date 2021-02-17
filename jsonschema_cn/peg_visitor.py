@@ -174,7 +174,7 @@ class TreeBuildingVisitor(NodeVisitor):
                 "additional_property_types": False,
             }
         maybe_name, maybe_type = maybe_something[0]
-        if len(maybe_name) == 0:
+        if maybe_name in ([], [[]]):  # No name, or wildcard name
             maybe_name = None
         else:
             maybe_name = maybe_name[0]
