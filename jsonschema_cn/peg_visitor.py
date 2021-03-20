@@ -49,11 +49,11 @@ class TreeBuildingVisitor(NodeVisitor):
             return first
         operands = self.gather_separated_list(first, rest)
         if all(isinstance(a, T.Constant) for a in operands):
-            # Convert oneof(const(...)...) into enum(...)
+            # Convert anyOf(const(...)...) into enum(...)
             constants = [a.value for a in operands]
             return T.Enum(values=constants)
         else:
-            return T.Operator(operator="oneOf", values=operands)
+            return T.Operator(operator="anyOf", values=operands)
 
     def visit_not_type(self, node, c) -> T.Not:
         return T.Not(value=c[1])
