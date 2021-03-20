@@ -9,3 +9,5 @@ venvpy36
 activate
 .credentials
 htmlcov
+*.code-workspace
+.vscode
