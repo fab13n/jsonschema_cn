@@ -1,18 +1,78 @@
 JsonSchema Compact Notation
 ===========================
 
-[Json-schema](https://json-schema.org/understanding-json-schema/reference/)
-is very useful to document and validate inputs and outputs of
-JSON-based REST APIs. Unfortunately, the schemas are more verbose and
-less human-readable than one may wish. This library defines a more
-compact syntax to describe JSON schemas, as well as a parser to
-convert such specifications into actual JSON schema.
+[Json-Schema](https://json-schema.org/) is very useful to document and
+validate inputs and outputs of JSON-based REST APIs. If you check
+everything that goes into your program (requests, configuration
+files…) and everything that goes out of it (responses), you'll catch a
+lot of errors and regressions early.  Moreover, the schema also acts
+has a documentation for develpers and users alike, and a documentation
+that _has_ to stay up-to-date: otherwise you get exceptions thrown
+around!
 
-At some point in the future, this library may also offer the way back,
-from JSON schemas back to a compact notation.
+Unfortunately, IMO jsonschema is neither as concise nor as
+human-readable as it should. Not as bad as XML schemas, but not great
+either. As a demonstration, here's a schema for a tiny subset of
+[GeoJSON](https://tools.ietf.org/html/rfc7946):
+
+
+	{ "type": "object",
+      "required": ["type", "geometry"],
+      "properties": {
+        "type": {"const": "Feature"},
+        "geometry": {
+          "anyOf": [
+            {"$ref": "#/definitions/point"},
+            {"$ref": "#/definitions/lineString"}]}},
+      "definitions": {
+        "coord": {
+          "type": "array",
+          "items": {"type": "number"},
+          "minItems": 2, "maxItems": 2},
+        "point": {
+          "type": "object",
+          "required": ["type", "coordinates"],
+          "properties": {
+            "type": {"const": "Point"},
+            "coordinates": {"$ref": "#/definitions/coord"}}},
+        "lineString": {
+          "type": "object",
+          "required": ["type", "coordinates"],
+          "properties": {
+            "type": {"const": "LineString"},
+            "coordinates": {
+              "type": "array",
+              "items": {"$ref": "#/definitions/coord"}}}}}}
+
+Enter JSCN, a.k.a. "JsonSchema Compact Notation", which expresses the
+exact same schema as follows:
+
+    { 
+      type: "Feature", 
+      geometry: <point> | <lineString>
+    }
+    where coord      = [number*]{2}
+      and point      = {type: "Point", coordinates: <coord>}
+      and lineString = {type: "LineString", coordinates: [<coord>*]}
+
+Not only is it much shorter; hopefully it reads as well as an
+informal documentation written for fellow developers.
+
+JSCN allows to express most of Json-Schema, in a language which isn't
+a subset of JSON, but is much more compact and human-readable. This
+Python library implements a parser which translates JSCN into
+JsonSchema, and encapsulates the result in a Python object allowing
+actual validation through [the jsonschema
+library](https://python-jsonschema.readthedocs.io/).
+
+Below is an informal description of the grammar. Fluency with JSON is
+expected; familiarity with JsonSchema is probably not mandatory, but
+won't hurt.
 
 Informal grammar
 ----------------
+
+### simple types
 
 Litteral JSON types are accessible as keywords: `boolean`, `string`,
 `integer`, `number`, `null`.
@@ -21,14 +81,19 @@ Regular expression strings are represented by `r`-prefixed litteral
 strings, similar to Python's litterals: `r"^[0-9]+$"` converts into
 `{"type": "string", "pattern": "^[0-9]+$"}`.
 
-Predefined formats are represented by `f`-prefixed litteral
-strings: `f"uri"` converts into `{"type": "string", "format":
-"uri"}`.
+Predefined
+[formats](https://json-schema.org/understanding-json-schema/reference/string.html#format)
+are represented by `f`-prefixed litteral strings: `f"uri"` converts
+into `{"type": "string", "format": "uri"}`.
 
 JSON constants are introduced between back-quotes: `` `123` ``
 converts to `{"const": 123}`. If several constants are joined with an
-`|` operator, they are translated into an enum: `` `1`|`2` `` converts
-to `{"enum": [1, 2]}`.
+`|` operator, they are translated into a Json-Schema enum: `` `1`|`2`
+`` converts to `{"enum": [1, 2]}`. For litteral constants (strings,
+numbers, booleans, null), backquotes aren't mandatory, i.e. `` `"foo"`
+`` and `"foo"` are equivalent.
+
+### Arrays
 
 Arrays are described between square brackets:
 
@@ -36,22 +101,24 @@ Arrays are described between square brackets:
 * an homogeneous, non-empty array of integers is denoted `[integer+]`
 * an homogeneous, possibly empty array of integers is denoted `[integer*]`
 * an array starting with two booleans is denoted `[boolean, boolean]`.
-  It can also contain additional items after those two booleans.
-* To forbid additional items, add an `only`
-  keyword at the beginning of the array: `[only boolean, boolean]` will
-  reject `[true, false, 1]`, whereas `[boolean, boolean]` would have
-  validated it.
-* arrays support cardinal suffix between braces: `[]{7}` is an
-  array of 7 elements, `[integer*]{3,8}` is an array of between 3 and
-  8 integers (inclusive), `[]{_, 9}` an array of at most 9
-  elements, `[string*]{4, _}` an array of at least 4 strings.
+  It can also contain additional items after those two booleans, and those
+  items don't have to be booleans.
+* To forbid additional items, add an `only` keyword at the beginning
+  of the array: `[only boolean, boolean]` will reject `[true, false, 1]`,
+  whereas `[boolean, boolean]` would have validated it.
+* arrays support cardinal suffix between braces: `[]{7}` is an array
+  of 7 elements, `[integer*]{3,8}` is an array of between 3 and 8
+  integers (inclusive), `[]{_, 9}` an array of at most 9 elements,
+  `[string*]{4, _}` an array of at least 4 strings.
 * a uniqueness constraint can be added with the `unique` prefix, as in
-  `[unique integer+]`, which will allow `[1, 2, 3]` but not `[1, 2, 1]`
+  `[unique integer+]`, which accepts `[1, 2, 3]` but not `[1, 2, 1]`
   since `1` occurs more than once.
 
-Strings and integers also support cardinal suffixes,
-e.g. `string{16}`, `integer{_, 0xFFFF}`. Integer ranges as well as
-sizes are inclusive.
+Strings and integers also support cardinal suffixes, e.g. `string{16}`
+(a string of 16 characters), `integer{_, 0xFFFF}` (an integer between
+0 and 65533). Ranges and sizes are inclusive.
+
+### Objects
 
 Objects are described between curly braces:
 
@@ -62,12 +129,13 @@ Objects are described between curly braces:
 * Quotes are optional around property names, if they are identifiers other
   than `"_"` or `"only"`: it's legal to write `{bar: integer}`.
 * To prevent non-listed property names from being accepted, use a
-  prefix `only`, as in `{only "bar": integer}`.
+  prefix `only` just after the opening brace, as in `{only "bar":
+  integer}`.
 * property names can be forced to comply with a regex, by an
   `only r"regex"` prefix, which can also be a reference to a
   definition: `{only r"^[a-z]+$"}`, or the equivalent
   `{only <word>} where word=r"^[a-z]$"+`.
-  Beware that according to jsonschema, even explicitly listed
+  Beware that according to Json-Schema, even explicitly listed
   property names must comply with the regex, for instance nothing
   can satisfy the schema `{only r"^[0-9]+$", "except_this": _}`.
   You can circumvent this limitation in several ways, e.g.
@@ -75,21 +143,27 @@ Objects are described between curly braces:
   key = `"except_this"` | r"^[0-9]+$"``.
 * In addition to enforcing a regex on property names, one can also
   enforce a type constraint on the associated values: `{only <word>:
-  integer}`. If no naming constraint is desired, the name can be
-  replaced by an underscore wildcard: `{only _: integer}`.
+  integer}`. If you want a constraint on the type but not on the name,
+  the name can be replaced by an underscore wildcard: `{only _:
+  integer}`.
 * A special type `forbidden`, equivalent to JSONSchema's `false`, can
   be used to specifically forbid a property name: `{reserved_name?:
   forbidden}`. Notice that the question mark is mandatory: otherwise,
   it would both expect the property to exist, and accept no value in it.
 
+### Definitions
+
 Definitions can be used in the schema, and given with a suffix `where 
 name0 = def0 and ... and nameX=defX`. References to definitions are
 put between angles, for instance `{author: <user_name>} where 
-user_name = r"^\w+$". When dumping the schema into actual jsonschema,
+user_name = r"^\w+$"`. When dumping the schema into actual jsonschema,
 unused definitions are pruned, and missing definitions cause an error.
 Definitions can only occur at top-level, i.e. 
 `{foo: <bar>} where bar=number` is legal, but
 `{foo: (<bar> where bar=number)}` is not.
+
+
+### Operations between types
 
 Types can be combined:
 
@@ -105,14 +179,18 @@ Types can be combined:
   then {postcode: r"\d{5}(-\d{4})?"} else {postcode: string}` will
   only check the postcode with the regex if the country is `"USA"`.
 * Parentheses can be added to enforce precedences , e.g. `A & (B|C) & D`
+* There is also an `not` operator: `{foo: not boolean}`.
 
-Combinations can also be performed on Python objects, e.g. the following
-Python expression is OK: `Schema("{foo: number}") | Schema("{bar: number}"),
-and produces a schema equivalent to `Schema("{foo: number}|{bar: number}")`.
-When definitions are merged in Python with `|` or `&`, their definitions
-are merged as needed. If a definition appears on both sides, it must be equal,
-i.e. one can merge `{foo: <n>} where n=number` with `{bar: <n>} where n=number`  
-but not with `{foo: <n>} where n=integer`.
+### From Python
+
+Combinations can also be performed on Python objects, e.g. the
+following Python expression is OK: `Schema("{foo: number}") |
+Schema("{bar: number}")`, and produces a schema equivalent to
+`Schema("{foo: number}|{bar: number}")`.  When definitions are merged
+in Python with `|` or `&`, their definitions are merged as needed. If
+a definition appears on both sides, it must be equal, i.e. one can
+merge `{foo: <n>} where n=number` with `{bar: <n>} where n=number` but
+not with `{foo: <n>} where n=integer`.
 
 More formally
 -------------
