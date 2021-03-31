@@ -2,7 +2,7 @@ import sys
 import json
 from argparse import ArgumentParser
 
-from .peg_visitor import parse
+from .parse import parse
 
 
 def main():
@@ -60,7 +60,11 @@ def main():
     output = open(args.output, "w") if args.output != "-" else sys.stdout
 
     source = input.read()
-    schema = parse("schema", source, verbose=args.verbose)
+    try:
+        schema = parse("schema", source, verbose=args.verbose)
+    except ValueError as e:
+        sys.stderr.write(str(e) + "\n")
+        sys.exit(1)
 
     if args.reduce:
         from .beta import reduce as reduce

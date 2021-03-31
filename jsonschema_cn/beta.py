@@ -1,6 +1,9 @@
 from . import tree as T
 
 class BetaReductionVisitor(object):
+    """
+    This visitor replaces every occurence of every reference with its definition.
+    """
 
     def visit_Schema_down(self, t: T.Schema) -> None:
         self.definitions = t.definitions

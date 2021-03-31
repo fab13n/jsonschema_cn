@@ -1,3 +1,12 @@
+"""
+Parsimonious visitor.
+
+Parsimonious parsers return parse trees, which can be converted through visitors.
+The Parsimonious parse trees are converted in two steps: a first visitor
+(cf `unspace.py`) removes all space tokens, then the `TreeBuildingVisitor` here
+converts it into a proper Abstract Syntax Tree (with node types from `tree.py`).
+"""
+
 from parsimonious import NodeVisitor
 from collections import Sequence
 from typing import Tuple, Optional, Set, Dict
@@ -10,6 +19,9 @@ from .unspace import UnspaceVisitor
 
 class TreeBuildingVisitor(NodeVisitor):
 
+    # TODO: this was a generic way to simplify single-element nodes
+    #       from the parse tree. Given the limited number of nodes
+    #       concerned after all, I'd rather use naive visit methods.
     SHELL_EXPRESSIONS = {
         "simple_type": 0,
         "card_content": 0,
@@ -66,25 +78,21 @@ class TreeBuildingVisitor(NodeVisitor):
         return T.Integer(cardinal=cardinal, multiple=multiple)
 
     def visit_litteral(self, node, c) -> T.Litteral:
-        # This rule is space-free
         return T.Litteral(value=node.children[0].text.lower())
 
     def visit_kw_forbidden(self, node, c) -> T.Forbidden:
         return T.Forbidden()
 
     def visit_lit_string(self, node, c) -> str:
-        # This rule is space-free
         return node.text[1:-1]
 
     def visit_lit_regex(self, node, c) -> T.String:
-        # This rule is space-free
         # Don't unescape the string
         return T.String(
             format=None, cardinal=(None, None), regex=node.children[-1].text[1:-1]
         )
 
     def visit_lit_format(self, node, c) -> T.String:
-        # This rule is space-free
         # No need to unescape
         return T.String(
             cardinal=(None, None), regex=None, format=node.children[-1].text[1:-1]
@@ -288,19 +296,3 @@ class TreeBuildingVisitor(NodeVisitor):
             return c[n]
         else:
             raise ValueError(f"bad SHELL_EXPRESSIONS for {node.expr_name}")
-
-
-jscn_visitor = TreeBuildingVisitor()
-unspace_visitor = UnspaceVisitor()
-
-
-def parse(what: str, source: str, verbose=False) -> T.Type:
-    raw_tree = grammar[what].parse(source)
-    unspaced_tree = unspace_visitor.visit(raw_tree)
-    if verbose:
-        print("PEG tree:\n" + unspaced_tree.prettily())
-    parsed_tree = jscn_visitor.visit(unspaced_tree)
-    if verbose:
-        print("JSCN tree:\n" + parsed_tree.prettily())
-    parsed_tree.source = source
-    return parsed_tree

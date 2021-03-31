@@ -10,8 +10,21 @@ from .indent import indent
 # Logger for Schema visitors
 vlog = logging.getLogger("jsonschema_cn:visitor")
 
-
 class Type(ABC):
+    """
+    Common superclass of Abstract Syntax Tree nodes representing a JSCN
+    specification. AST nodes implement:
+
+    * a `jsonschema` cached property, relaying on a `to_jsonschema' method,
+      which actually converts them into jsonschema draft 7;
+    
+    * a `__str__()` method which re-prints them as JSCN source code;
+
+    * a visitor pattern, similar to that from Parsimonius.
+      Visitors can provide a distinct callback for every node class,
+      on the way down the tree and on the way back up.
+    """
+
 
     CONSTRUCTOR_KWARGS: Tuple[str, ...] = ()
 
@@ -26,7 +39,9 @@ class Type(ABC):
 
     @property
     def jsonschema(self):
-        """Cached compilation of the corresponding jsonschema."""
+        """
+        Cached compilation into the corresponding jsonschema.
+        """
         if self._jsonschema is None:
             self._jsonschema = self.to_jsonschema()
         return self._jsonschema
@@ -264,8 +279,7 @@ class Definitions(Type):
         definitions = Definitions(values={})
         for name, schema in d.items():
             if isinstance(schema, str):  # Convert src strings -> Schema
-                from .peg_visitor import parse
-
+                from .parse import parse
                 schema = parse("schema", schema)
             definitions |= schema.definitions
             definitions |= Definitions(values={name: schema.value})
