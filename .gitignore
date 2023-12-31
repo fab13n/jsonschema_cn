@@ -6,6 +6,7 @@ build
 *.egg-info
 dist
 venvpy36
+venv
 activate
 .credentials
 htmlcov

@@ -8,7 +8,7 @@ converts it into a proper Abstract Syntax Tree (with node types from `tree.py`).
 """
 
 from parsimonious import NodeVisitor
-from collections import Sequence
+from collections.abc import Sequence
 from typing import Tuple, Optional, Set, Dict
 import json
 
