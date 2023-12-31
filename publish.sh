@@ -42,6 +42,7 @@ python3 setup.py sdist bdist_wheel || exit 1
 
 # Publish
 . .credentials
+which twine || pip install twine
 twine upload \
       --username "$LOGIN" \
       --password "$PASSWORD" \

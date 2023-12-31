@@ -19,7 +19,7 @@ setup(name='jsonschema_cn',
       author='Fabien Fleutot',
       author_email='fleutot@gmail.com',
       classifiers=[
-        'Development Status :: 3 - Beta',
+        'Development Status :: 4 - Beta',
         'License :: OSI Approved :: BSD License',
         'Programming Language :: Python :: 3.7',
         "Operating System :: OS Independent",
