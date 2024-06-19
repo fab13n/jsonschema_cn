@@ -50,7 +50,7 @@ class TestJSCN(unittest.TestCase):
 
     def test_constant_with_backquote(self):
         self.cmp(r'`"`"`', {"const": "`"})
-        with self.assertRaises(IncompleteParseError):
+        with self.assertRaises(ValueError):
             Schema('`{"foo": `}`')
 
     def test_enum(self):
@@ -100,6 +100,12 @@ class TestJSCN(unittest.TestCase):
 
     def test_object_card(self):
         pass  # TODO
+
+    def test_object_pair_description(self):
+        self.cmp(
+            '{foo?: number "some description"}',
+            {"type": "object", "properties": {"foo": {"type": "number", "description": "some description"}}}
+        )
 
     def test_array_empty(self):
         array = {"type": "array"}

@@ -21,6 +21,14 @@ def main():
         help="Verbose output",
     )
     parser.add_argument(
+        "-s",
+        "--source",
+        action="store_const",
+        const=True,
+        default=False,
+        help="Keep jscn source as a top-level comment",
+    )
+    parser.add_argument(
         "-r",
         "--reduce",
         action="store_const",
@@ -73,13 +81,16 @@ def main():
     if args.format:
         result = str(schema)
     else:
+        json = schema.jsonschema
+        if not args.source:
+            del json["$comment"]
         try:
             # TODO Try and guess TTY width
             import jsview
-            result = jsview.dumps(schema.jsonschema)
+            result = jsview.dumps(json)
         except ModuleNotFoundError:
             # Raw printing if jsview isn't installed
-            result = json.dumps(schema.jsonschema)
+            result = json.dumps(json)
 
     output.write(result + "\n")
     output.flush()

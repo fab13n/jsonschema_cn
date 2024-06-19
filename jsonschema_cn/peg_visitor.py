@@ -77,6 +77,10 @@ class TreeBuildingVisitor(NodeVisitor):
         _, cardinal, multiple = c
         return T.Integer(cardinal=cardinal, multiple=multiple)
 
+    def visit_number(self, node, c) -> T.Number:
+        _, cardinal, multiple = c
+        return T.Number(cardinal=cardinal, multiple=multiple)
+
     def visit_litteral(self, node, c) -> T.Litteral:
         return T.Litteral(value=node.children[0].text.lower())
 
@@ -157,11 +161,12 @@ class TreeBuildingVisitor(NodeVisitor):
         return T.Object(**kwargs)
 
     def visit_object_pair(self, node, c) -> T.ObjectProperty:
-        key, question, _, val = c
+        key, question, _, val, wrapped_description = c
+        description = wrapped_description[0] if len(wrapped_description) > 0 else None
         if not isinstance(val, T.Type):  # wildcard
             val = None
         is_optional = bool(question) | isinstance(val, T.Forbidden)
-        return T.ObjectProperty(self.unescape_string(key), is_optional, val)
+        return T.ObjectProperty(self.unescape_string(key), is_optional, val, description)
 
     def visit_object_pair_unquoted_name(self, node, c) -> str:
         return node.text

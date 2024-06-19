@@ -17,7 +17,7 @@ class Type(ABC):
 
     * a `jsonschema` cached property, relaying on a `to_jsonschema' method,
       which actually converts them into jsonschema draft 7;
-    
+
     * a `__str__()` method which re-prints them as JSCN source code;
 
     * a visitor pattern, similar to that from Parsimonius.
@@ -222,7 +222,8 @@ class Schema(Type):
             jsonschema.Draft7Validator.check_schema(self.jsonschema)
         else:  # Validate a piece of data against the schema
             jsonschema.validate(
-                data, self.jsonschema, format_checker=jsonschema.draft7_format_checker,
+                #data, self.jsonschema, format_checker=jsonschema.draft7_format_checker,
+                data, self.jsonschema, format_checker=jsonschema.Draft7Validator.FORMAT_CHECKER,
             )
 
     def __str__(self):
@@ -303,13 +304,15 @@ class Definitions(Type):
         return s.visit_up(visitor)
 
 
-class Integer(Type):
+class Number(Type):
 
     CONSTRUCTOR_KWARGS = ("cardinal", "multiple")
 
+    TYPE_NAME = "number"
+
     def to_jsonschema(self):
         (card_min, card_max) = self.cardinal
-        r = {"type": "integer"}
+        r = {"type": self.TYPE_NAME}
         if card_min is not None:
             r["minimum"] = card_min
         if card_max is not None:
@@ -319,7 +322,7 @@ class Integer(Type):
         return r
 
     def __str__(self):
-        r = "integer"
+        r = self.TYPE_NAME
         (card_min, card_max) = self.cardinal
         if card_min is not None and card_max is not None:
             r += "{" + str(card_min) + ", " + str(card_max) + "}"
@@ -330,6 +333,10 @@ class Integer(Type):
         if self.multiple is not None:
             r += f"/{self.multiple}"
         return r
+
+
+class Integer(Number):
+    TYPE_NAME = "integer"
 
 
 class String(Type):
@@ -473,6 +480,7 @@ class ObjectProperty(NamedTuple):
     name: Optional[str]
     optional: bool
     type: Type
+    description: Optional[str] = None
 
 
 class Object(Type):
@@ -489,10 +497,18 @@ class Object(Type):
         r = {"type": "object"}
         properties = {}
         required = []
-        for (k, opt, v) in self.properties:
+        for (k, opt, v, description) in self.properties:
+            if description == []:
+                description = None
             if not opt:
                 required.append(k)
-            properties[k] = v.jsonschema if v is not None else True
+            if v is None:
+                json_v = True if description is None else {"description": description}
+            else:
+                json_v = v.jsonschema
+                if description is not None:
+                    json_v["description"] = description
+            properties[k] = json_v
         if required:
             r["required"] = required
         if properties:
@@ -542,7 +558,7 @@ class Object(Type):
                 return name in ("only", "unique") or not re.match(r"^\w+$", name)
 
             def pair_str(item):
-                (name, opt, t) = item
+                (name, opt, t, description) = item
                 opt = "?" if opt else ""
                 if needs_quotes(name):
                     name = json.dumps(name)
@@ -552,7 +568,7 @@ class Object(Type):
             properties = ",\n".join(pair_str(item) for item in self.properties)
         else:
             properties = None
-    
+
         multi_lines = len(self.properties) > 1
         if only == "only":
             r = "only " + properties if properties else "only"
@@ -563,7 +579,7 @@ class Object(Type):
             multi_lines = True
         else:
             r = only
-        
+
         r = "{\n" + r + "\n}" if multi_lines else "{" + r + "}"
         (card_min, card_max) = self.cardinal
         if card_min is not None and card_max is not None:

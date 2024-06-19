@@ -6,12 +6,12 @@ src = r"""
 schema = _ type _ opt_definitions _
 type = sequence_and (_ or _ sequence_and)*
 sequence_and = simple_type (_ and _ simple_type)*
-simple_type = litteral / kw_forbidden / string / object / integer / array /
+simple_type = litteral / kw_forbidden / string / object / integer / number / array /
        lit_regex / lit_format / constant / parens / not_type / def_reference /
        conditional
 parens = lparen _ type _ rparen
 
-litteral = KEYWORD("boolean") / KEYWORD("null") / KEYWORD("number")
+litteral = KEYWORD("boolean") / KEYWORD("null")
 
 lit_integer =  ~"0x[0-9a-fA-F]+" / ~"[0-9]+"
 lit_regex = regex_prefix lit_string
@@ -31,6 +31,7 @@ neither_quote_nor_backquote = escaped_char / (~"[^\"`]")
 
 string = KEYWORD("string") _ opt_cardinal
 integer = KEYWORD("integer") _ opt_cardinal _ opt_multiple
+number = KEYWORD("number") _ opt_cardinal _ opt_multiple
 opt_multiple = ("/" _ lit_integer)?
 
 not_type = kw_not _ simple_type
@@ -86,7 +87,7 @@ object_non_empty = lbrace _
                    rbrace
                    opt_cardinal
 object_only = (kw_only _ ((lit_regex/def_reference/wildcard) _ (colon _ type)?)? comma?)?
-object_pair = object_pair_name _ question? _ colon _ object_pair_type
+object_pair = object_pair_name _ question? _ colon _ object_pair_type _ lit_string?
 object_pair_name = lit_string / object_pair_unquoted_name
 object_pair_unquoted_name = ~"[A-Za-z0-9][-_A-Za-z0-9]*"
 object_pair_type = type / wildcard
